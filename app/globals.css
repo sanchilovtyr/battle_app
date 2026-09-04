@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-unbounded: "Unbounded", sans-serif;
+  --font-manrope: "Manrope", sans-serif;
+  --font-plex-mono: "IBM Plex Mono", monospace;
+}
+
+@layer base {
+  ::selection {
+    background-color: #cbff43;
+    color: #111525;
+  }
+
+  :focus-visible {
+    outline: 2px solid #7658f6;
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .waypoint-num {
+    @apply font-mono text-xs tracking-wider;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* "Скачать PDF" использует системный диалог печати браузера (Ctrl/Cmd+P -> Сохранить как PDF),
+   это обходит проблему с отсутствием кириллицы во встроенных шрифтах PDF-библиотек.
+   Правило ниже прячет всё, кроме содержимого плана, с сохранением исходной вёрстки. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #print-plan,
+  #print-plan * {
+    visibility: visible;
+  }
+  #print-plan {
+    position: absolute;
+    inset: 0;
+    padding: 24px;
+  }
+  details {
+    break-inside: avoid;
+  }
+  details:not([open]) > *:not(summary) {
+    display: block !important;
+  }
+}
+

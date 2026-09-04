@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String   @default("")
+  phone        String   @default("")
+  createdAt    DateTime @default(now())
+
+  subscription    Subscription?
+  businesses      Business[]
+  supportMessages SupportMessage[]
+  payments        Payment[]
+}
+
+model Subscription {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId           String    @default("trial") // trial | start | business | agency
+  status           String    @default("active") // active | cancelled
+  currentPeriodEnd DateTime?
+  // сохранённый способ оплаты ЮKassa для автоматических списаний за следующий период
+  paymentMethodId  String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model Business {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  businessType String
+  // весь сгенерированный план целиком — чтобы можно было открыть его повторно
+  planJson     Json
+  createdAt    DateTime @default(now())
+}
+
+model SupportMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  from      String // user | admin
+  body      String
+  imageUrl  String?
+  createdAt DateTime @default(now())
+}
+
+/// Платежи ЮKassa — журнал для сверки и защиты от повторной обработки вебхука
+model Payment {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  yookassaId     String   @unique
+  planId         String
+  amountKopecks  Int
+  status         String // pending | succeeded | canceled
+  createdAt      DateTime @default(now())
+}

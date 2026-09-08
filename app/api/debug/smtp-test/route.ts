@@ -1,10 +1,26 @@
 import { NextResponse } from "next/server";
+import { connect } from "net";
 import { sendMail } from "@/lib/mailer";
 
 // Временная диагностика: открыть в браузере
-// https://ваш-домен/api/_debug/smtp-test?secret=ЗНАЧЕНИЕ_CRON_SECRET
+// https://ваш-домен/api/debug/smtp-test?secret=ЗНАЧЕНИЕ_CRON_SECRET
 // Защищено тем же CRON_SECRET, что уже есть в переменных — отдельный секрет не нужен.
 // После того как проблему с почтой найдём — этот файл стоит удалить.
+
+function checkTcp(host: string, port: number, timeoutMs = 8000): Promise<{ ok: boolean; ms: number; error?: string }> {
+  const started = Date.now();
+  return new Promise((resolve) => {
+    const socket = connect({ host, port, timeout: timeoutMs });
+    const finish = (ok: boolean, error?: string) => {
+      socket.destroy();
+      resolve({ ok, ms: Date.now() - started, error });
+    };
+    socket.on("connect", () => finish(true));
+    socket.on("timeout", () => finish(false, `таймаут ${timeoutMs}мс`));
+    socket.on("error", (e) => finish(false, e.message));
+  });
+}
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const secret = searchParams.get("secret");
@@ -13,40 +29,36 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
   }
 
-  const to = process.env.SMTP_USER || "";
-  const started = Date.now();
+  // Три параллельные проверки: сама почта на двух портах + контрольный внешний хост,
+  // который точно должен быть доступен, если исходящие соединения вообще работают
+  const [port587, port465, control] = await Promise.all([
+    checkTcp("smtp.timeweb.ru", 587),
+    checkTcp("smtp.timeweb.ru", 465),
+    checkTcp("google.com", 443),
+  ]);
 
-  // Подстраховка своим тайм-аутом поверх тайм-аутов nodemailer —
-  // чтобы этот запрос точно не завис намертво, а всегда что-то ответил
-  const withTimeout = <T,>(promise: Promise<T>, ms: number) =>
-    Promise.race([
-      promise,
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Таймаут ${ms}мс — соединение не отвечает`)), ms)
-      ),
-    ]);
+  const result: Record<string, unknown> = {
+    tcp: {
+      "smtp.timeweb.ru:587": port587,
+      "smtp.timeweb.ru:465": port465,
+      "google.com:443 (контроль)": control,
+    },
+  };
 
-  try {
-    await withTimeout(
-      sendMail({ to, subject: "Диагностика SMTP", html: "Тестовое письмо для проверки отправки" }),
-      15000
-    );
-    return NextResponse.json({ ok: true, to, tookMs: Date.now() - started });
-  } catch (e) {
-    return NextResponse.json(
-      {
+  // Если TCP хотя бы до одного порта достучался — пробуем реальную отправку письма через него
+  if (port587.ok || port465.ok) {
+    const started = Date.now();
+    try {
+      await sendMail({ to: process.env.SMTP_USER || "", subject: "Диагностика SMTP", html: "Тест" });
+      result.mailSend = { ok: true, tookMs: Date.now() - started };
+    } catch (e) {
+      result.mailSend = {
         ok: false,
-        to,
         tookMs: Date.now() - started,
         error: e instanceof Error ? e.message : String(e),
-        env: {
-          SMTP_HOST: process.env.SMTP_HOST || "(не задано)",
-          SMTP_PORT: process.env.SMTP_PORT || "(не задано)",
-          SMTP_USER: process.env.SMTP_USER ? "задано" : "(не задано)",
-          SMTP_PASSWORD: process.env.SMTP_PASSWORD ? "задано" : "(не задано)",
-        },
-      },
-      { status: 500 }
-    );
+      };
+    }
   }
+
+  return NextResponse.json(result);
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
+import { sendRegistrationEmail } from "@/lib/mailer";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -30,6 +31,15 @@ export async function POST(req: Request) {
       subscription: { create: { planId: "trial", status: "active" } },
     },
   });
+
+  // Письмо не должно блокировать регистрацию — если SMTP не настроен или
+  // временно недоступен, пользователь всё равно должен успешно зарегистрироваться
+  try {
+    await sendRegistrationEmail(email);
+    console.log(`Письмо о регистрации отправлено на ${email}`);
+  } catch (e) {
+    console.error("Не удалось отправить письмо о регистрации", e);
+  }
 
   return NextResponse.json({ ok: true });
 }

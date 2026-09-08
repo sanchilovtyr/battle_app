@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { addMessage, getThreads, SupportThread } from "@/lib/support";
-import { MOCK_USERS } from "@/lib/adminMockData";
 import ImageAttachField from "@/components/ImageAttachField";
 
 function formatDateTime(iso: string) {
@@ -24,10 +23,18 @@ export default function AdminMessagesTab({ prefillEmail }: { prefillEmail?: stri
   const [body, setBody] = useState("");
   const [image, setImage] = useState<string | undefined>(undefined);
   const [sent, setSent] = useState(false);
+  const [knownEmails, setKnownEmails] = useState<string[]>([]);
 
   useEffect(() => {
     if (prefillEmail) setEmail(prefillEmail);
   }, [prefillEmail]);
+
+  useEffect(() => {
+    fetch("/api/admin/users")
+      .then((res) => (res.ok ? res.json() : { users: [] }))
+      .then((data) => setKnownEmails((data.users ?? []).map((u: { email: string }) => u.email)))
+      .catch(() => setKnownEmails([]));
+  }, []);
 
   const threads = useMemo(() => getThreads(), [version]);
 
@@ -61,8 +68,8 @@ export default function AdminMessagesTab({ prefillEmail }: { prefillEmail?: stri
             className="w-full rounded-xl border border-line p-3 text-sm outline-none focus:border-violet"
           />
           <datalist id="admin-known-emails">
-            {MOCK_USERS.map((u) => (
-              <option key={u.id} value={u.email} />
+            {knownEmails.map((e) => (
+              <option key={e} value={e} />
             ))}
           </datalist>
           <textarea

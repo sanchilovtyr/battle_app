@@ -1,18 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import AdminUsersTab from "@/components/AdminUsersTab";
 import AdminModulesTab from "@/components/AdminModulesTab";
 import AdminRevenueTab from "@/components/AdminRevenueTab";
 import AdminMessagesTab from "@/components/AdminMessagesTab";
-
-// ВАЖНО: это не настоящая защита. Пароль лежит прямо в коде фронтенда и виден
-// любому, кто откроет исходники страницы в браузере. Это просто заслон от
-// случайного захода, а не от целенаправленного доступа. Перед реальным
-// использованием эту страницу нужно закрыть серверной аутентификацией с
-// проверкой роли администратора (см. README).
-const ADMIN_PASSWORD = "promoplan-admin-2026";
 
 type Tab = "users" | "modules" | "revenue" | "messages";
 
@@ -24,26 +17,58 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export default function AdminPage() {
+  const [checked, setChecked] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [tab, setTab] = useState<Tab>("users");
   const [messagePrefill, setMessagePrefill] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/check")
+      .then((res) => (res.ok ? res.json() : { authenticated: false }))
+      .then((data) => setUnlocked(Boolean(data.authenticated)))
+      .finally(() => setChecked(true));
+  }, []);
 
   const openMessageComposer = (email: string) => {
     setMessagePrefill(email);
     setTab("messages");
   };
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === ADMIN_PASSWORD) {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Неверный пароль");
+        setSubmitting(false);
+        return;
+      }
       setUnlocked(true);
-      setError(false);
-    } else {
-      setError(true);
+    } catch {
+      setError("Не удалось связаться с сервером");
+      setSubmitting(false);
     }
   };
+
+  const logout = async () => {
+    await fetch("/api/admin/logout", { method: "POST" });
+    setUnlocked(false);
+    setPassword("");
+  };
+
+  if (!checked) {
+    return <main className="min-h-screen bg-ink-900" />;
+  }
 
   if (!unlocked) {
     return (
@@ -59,12 +84,13 @@ export default function AdminPage() {
             autoFocus
             className="w-full rounded-xl border border-line p-3.5 text-sm outline-none focus:border-violet"
           />
-          {error && <p className="mt-2 text-sm text-red-600">Неверный пароль</p>}
+          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
           <button
             type="submit"
-            className="mt-4 w-full rounded-full bg-ink-900 px-5 py-3 text-sm font-medium text-white hover:bg-ink-800"
+            disabled={submitting}
+            className="mt-4 w-full rounded-full bg-ink-900 px-5 py-3 text-sm font-medium text-white hover:bg-ink-800 disabled:opacity-50"
           >
-            Войти
+            {submitting ? "Проверяем…" : "Войти"}
           </button>
           <Link href="/" className="mt-4 block text-center text-xs text-muted underline underline-offset-4">
             На главную
@@ -80,9 +106,17 @@ export default function AdminPage() {
         <div className="mx-auto max-w-6xl px-5 py-5 md:px-8">
           <div className="mb-4 flex items-center justify-between">
             <h1 className="font-display text-xl text-ink-900">Админ-панель</h1>
-            <Link href="/" className="text-sm text-muted underline underline-offset-4 hover:text-ink-900">
-              На сайт
-            </Link>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={logout}
+                className="text-sm text-muted underline underline-offset-4 hover:text-ink-900"
+              >
+                Выйти
+              </button>
+              <Link href="/" className="text-sm text-muted underline underline-offset-4 hover:text-ink-900">
+                На сайт
+              </Link>
+            </div>
           </div>
           <div className="flex gap-2">
             {TABS.map((t) => (

@@ -64,3 +64,24 @@ export async function sendRegistrationEmail(email: string) {
     html,
   });
 }
+
+/** Уведомление владельцу сервиса о новой регистрации — не отправляется,
+ *  если ADMIN_NOTIFY_EMAIL не задан в переменных окружения */
+export async function sendAdminNewUserNotification(userEmail: string) {
+  const notifyTo = process.env.ADMIN_NOTIFY_EMAIL;
+  if (!notifyTo) return;
+
+  const html = `
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; color: #111525;">
+      <h2 style="margin-bottom: 8px;">Новая регистрация</h2>
+      <p>На сервисе «Ключевое слово» зарегистрировался новый пользователь:</p>
+      <p><b>${userEmail}</b></p>
+    </div>
+  `;
+
+  await sendMail({
+    to: notifyTo,
+    subject: `Новый пользователь: ${userEmail}`,
+    html,
+  });
+}

@@ -36,6 +36,16 @@ export default function AdminUsersTab({ onMessage }: { onMessage: (email: string
       .catch((e) => setError(String(e.message || e)));
   }, []);
 
+  const deleteUser = async (id: string, email: string) => {
+    if (!window.confirm(`Удалить аккаунт ${email}? Это необратимо.`)) return;
+    const res = await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      alert("Не удалось удалить пользователя");
+      return;
+    }
+    setUsers((prev) => (prev ?? []).filter((u) => u.id !== id));
+  };
+
   const filtered = useMemo(
     () => (users ?? []).filter((u) => filter === "all" || u.planId === filter),
     [users, filter]
@@ -122,12 +132,20 @@ export default function AdminUsersTab({ onMessage }: { onMessage: (email: string
                     </td>
                     <td className="p-4 text-muted">{formatDate(u.createdAt)}</td>
                     <td className="p-4">
-                      <button
-                        onClick={() => onMessage(u.email)}
-                        className="rounded-full border border-ink-900/20 px-3 py-1.5 text-xs font-medium text-ink-900 hover:bg-soft"
-                      >
-                        Написать
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => onMessage(u.email)}
+                          className="rounded-full border border-ink-900/20 px-3 py-1.5 text-xs font-medium text-ink-900 hover:bg-soft"
+                        >
+                          Написать
+                        </button>
+                        <button
+                          onClick={() => deleteUser(u.id, u.email)}
+                          className="rounded-full border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                        >
+                          Удалить
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

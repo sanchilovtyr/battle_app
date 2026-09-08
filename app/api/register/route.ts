@@ -32,20 +32,17 @@ export async function POST(req: Request) {
     },
   });
 
-  // Письма не должны блокировать регистрацию — если SMTP не настроен или
-  // временно недоступен, пользователь всё равно должен успешно зарегистрироваться
-  try {
-    await sendRegistrationEmail(email);
-    console.log(`Письмо о регистрации отправлено на ${email}`);
-  } catch (e) {
-    console.error("Не удалось отправить письмо о регистрации", e);
-  }
+  // Письма отправляем в фоне, не дожидаясь их результата — иначе зависший
+  // или медленный SMTP-сервер завесил бы весь ответ на регистрацию.
+  // Ошибки всё равно логируются, просто уже после того как пользователь
+  // получил ответ "регистрация прошла успешно"
+  sendRegistrationEmail(email)
+    .then(() => console.log(`Письмо о регистрации отправлено на ${email}`))
+    .catch((e) => console.error("Не удалось отправить письмо о регистрации", e));
 
-  try {
-    await sendAdminNewUserNotification(email);
-  } catch (e) {
-    console.error("Не удалось отправить уведомление админу о новой регистрации", e);
-  }
+  sendAdminNewUserNotification(email).catch((e) =>
+    console.error("Не удалось отправить уведомление админу о новой регистрации", e)
+  );
 
   return NextResponse.json({ ok: true });
 }

@@ -19,6 +19,9 @@ function getTransporter() {
     port,
     secure: port === 465, // 465 — SSL с самого начала соединения; 587/2525 — STARTTLS
     auth: { user, pass },
+    connectionTimeout: 10000, // 10 секунд на установку соединения, дальше — явная ошибка
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
   });
 
   return cachedTransporter;

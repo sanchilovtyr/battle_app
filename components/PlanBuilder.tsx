@@ -422,16 +422,62 @@ export default function PlanBuilder() {
     setPdfNotice(null);
   };
 
-  const downloadPdf = () => {
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const downloadPdf = async () => {
+    if (!plan || !businessName) return;
     setPdfNotice(null);
-    window.print();
+    setDownloadingPdf(true);
+    try {
+      const res = await fetch("/api/plan/download-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessName, plan }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setPdfNotice(data.error || "Не удалось скачать PDF, попробуйте ещё раз.");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "plan.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setPdfNotice("Не удалось связаться с сервером, попробуйте ещё раз.");
+    } finally {
+      setDownloadingPdf(false);
+    }
   };
 
-  const emailPdf = () => {
-    downloadPdf();
-    setPdfNotice(
-      `В боевой версии PDF автоматически придёт на ${email}. Пока сохраните файл из диалога печати — для отправки на почту не хватает подключённого email-провайдера (см. README).`
-    );
+  const [sendingPdf, setSendingPdf] = useState(false);
+
+  const emailPdf = async () => {
+    if (!plan || !businessName) return;
+    setSendingPdf(true);
+    setPdfNotice(null);
+    try {
+      const res = await fetch("/api/plan/email-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessName, plan }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPdfNotice(data.error || "Не удалось отправить PDF на почту, попробуйте ещё раз.");
+      } else {
+        setPdfNotice(`PDF отправлен на ${email}.`);
+      }
+    } catch {
+      setPdfNotice("Не удалось связаться с сервером, попробуйте ещё раз.");
+    } finally {
+      setSendingPdf(false);
+    }
   };
 
   const answeredValue = raw[question?.id];
@@ -544,15 +590,17 @@ export default function PlanBuilder() {
             <div className="flex shrink-0 flex-wrap gap-2">
               <button
                 onClick={downloadPdf}
-                className="rounded-full border border-ink-900/20 px-4 py-2 text-sm font-medium text-ink-900 transition-colors hover:bg-ink-900 hover:text-white"
+                disabled={downloadingPdf}
+                className="rounded-full border border-ink-900/20 px-4 py-2 text-sm font-medium text-ink-900 transition-colors hover:bg-ink-900 hover:text-white disabled:opacity-50"
               >
-                Скачать PDF
+                {downloadingPdf ? "Готовим…" : "Скачать PDF"}
               </button>
               <button
                 onClick={emailPdf}
-                className="rounded-full border border-ink-900/20 px-4 py-2 text-sm font-medium text-ink-900 transition-colors hover:bg-ink-900 hover:text-white"
+                disabled={sendingPdf}
+                className="rounded-full border border-ink-900/20 px-4 py-2 text-sm font-medium text-ink-900 transition-colors hover:bg-ink-900 hover:text-white disabled:opacity-50"
               >
-                Получить PDF на почту
+                {sendingPdf ? "Отправляем…" : "Получить PDF на почту"}
               </button>
               <button
                 onClick={startNewBusiness}

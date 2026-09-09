@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/session";
 import { createYookassaPayment } from "@/lib/yookassa";
 import { getPlan, PlanId } from "@/lib/plans";
 import { prisma } from "@/lib/db";
+import { checkRateLimit } from "@/lib/rateLimit";
 
 function rubFromPriceLabel(price: string): number {
   return Number(price.replace(/[^\d]/g, "")) || 0;
@@ -14,6 +15,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Сначала зарегистрируйтесь или войдите" }, { status: 401 });
   }
 
+  if (!checkRateLimit(`create-payment:${user.id}`, 10, 10 * 60 * 1000)) {
+    return NextResponse.json(
+      { error: "Слишком много попыток оплаты подряд. Попробуйте через несколько минут." },
+      { status: 429 }
+    );
+  }
+
   const body = await req.json().catch(() => ({}));
   const planId = body.planId as PlanId;
   const plan = getPlan(planId);
@@ -23,15 +31,16 @@ export async function POST(req: Request) {
   }
 
   const amountRub = rubFromPriceLabel(plan.price);
-  const origin =
-    req.headers.get("origin") || process.env.NEXTAUTH_URL || "http://localhost:3000";
+  // Не берём адрес возврата из заголовка Origin — его может прислать любой,
+  // а не только настоящий браузер пользователя. Используем свой настроенный адрес
+  const siteUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
 
   let payment;
   try {
     payment = await createYookassaPayment({
       amountRub,
       description: `Подписка «${plan.name}» — сервис «Ключевое слово»`,
-      returnUrl: `${origin}/account?payment=done`,
+      returnUrl: `${siteUrl}/account?payment=done`,
       metadata: { userId: user.id, planId },
       savePaymentMethod: true,
     });

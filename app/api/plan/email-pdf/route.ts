@@ -5,6 +5,8 @@ import { computeEffectivePlanId } from "@/lib/subscriptionUtils";
 import { getPlan } from "@/lib/plans";
 import { generatePlanPdf } from "@/lib/pdfGenerator";
 import { sendPlanPdfEmail } from "@/lib/mailer";
+import { isPlanSizeReasonable } from "@/lib/planValidation";
+import { checkRateLimit } from "@/lib/rateLimit";
 import { GeneratedPlan } from "@/lib/types";
 
 export async function POST(req: Request) {
@@ -13,11 +15,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
   }
 
+  if (!checkRateLimit(`email-pdf:${user.id}`, 5, 10 * 60 * 1000)) {
+    return NextResponse.json(
+      { error: "Слишком много запросов подряд. Попробуйте через несколько минут." },
+      { status: 429 }
+    );
+  }
+
   const body = await req.json().catch(() => null);
   const businessName = String(body?.businessName ?? "Мой бизнес").slice(0, 200);
   const plan = body?.plan as GeneratedPlan | undefined;
 
-  if (!plan || !plan.foundation || !plan.traffic) {
+  if (!plan || !plan.foundation || !plan.traffic || !isPlanSizeReasonable(plan)) {
     return NextResponse.json({ error: "Некорректные данные плана" }, { status: 400 });
   }
 

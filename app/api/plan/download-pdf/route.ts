@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { computeEffectivePlanId } from "@/lib/subscriptionUtils";
 import { getPlan } from "@/lib/plans";
 import { generatePlanPdf } from "@/lib/pdfGenerator";
+import { isPlanSizeReasonable } from "@/lib/planValidation";
 import { GeneratedPlan } from "@/lib/types";
 
 export async function POST(req: Request) {
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
   const businessName = String(body?.businessName ?? "Мой бизнес").slice(0, 200);
   const plan = body?.plan as GeneratedPlan | undefined;
 
-  if (!plan || !plan.foundation || !plan.traffic) {
+  if (!plan || !plan.foundation || !plan.traffic || !isPlanSizeReasonable(plan)) {
     return NextResponse.json({ error: "Некорректные данные плана" }, { status: 400 });
   }
 

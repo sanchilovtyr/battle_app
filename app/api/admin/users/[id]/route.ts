@@ -9,7 +9,11 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
     return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
   }
 
-  await prisma.user.delete({ where: { id: params.id } });
-
-  return NextResponse.json({ ok: true });
+  try {
+    await prisma.user.delete({ where: { id: params.id } });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error("Не удалось удалить пользователя", e);
+    return NextResponse.json({ error: "Пользователь не найден или уже удалён" }, { status: 404 });
+  }
 }

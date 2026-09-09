@@ -2,6 +2,7 @@ import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "./db";
+import { checkRateLimit } from "./rateLimit";
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
@@ -15,9 +16,15 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email.trim().toLowerCase() },
-        });
+        const email = credentials.email.trim().toLowerCase();
+
+        // Лимит привязан к email, а не к IP — защищает конкретный аккаунт от
+        // перебора пароля, даже если атакующий меняет IP-адреса
+        if (!checkRateLimit(`login:${email}`, 10, 15 * 60 * 1000)) {
+          throw new Error("Слишком много попыток входа. Попробуйте позже.");
+        }
+
+        const user = await prisma.user.findUnique({ where: { email } });
         if (!user) return null;
 
         const valid = await bcrypt.compare(credentials.password, user.passwordHash);

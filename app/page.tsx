@@ -140,7 +140,6 @@ export default function Home() {
           <Link href="/privacy" className="underline underline-offset-4 hover:text-white">
             Политика персональных данных
           </Link>
-          <span className="ml-auto">Прототип — реальная оплата и подтверждение почты ещё не подключены</span>
         </div>
       </footer>
     </main>

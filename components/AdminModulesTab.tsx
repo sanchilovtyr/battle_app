@@ -1,15 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import {
-  getEditableBaseModules,
-  getCustomModules,
-  saveOverride,
-  clearOverride,
-  saveCustomModule,
-  deleteCustomModule,
-  CustomModule,
-} from "@/lib/adminModules";
+import { useEffect, useState } from "react";
 import { Phase, BusinessType } from "@/lib/types";
 import { QUESTIONS } from "@/lib/questions";
 
@@ -19,8 +10,28 @@ const PHASE_LABELS: Record<Phase, string> = {
   retention: "Этап 3 · Удержание",
 };
 
-const BUSINESS_TYPE_OPTIONS =
-  QUESTIONS.find((q) => q.id === "businessType")?.options ?? [];
+const BUSINESS_TYPE_OPTIONS = QUESTIONS.find((q) => q.id === "businessType")?.options ?? [];
+
+interface BaseModuleRow {
+  id: string;
+  title: string;
+  phase: Phase;
+  timeToResult: string;
+  why: string;
+  steps: string[];
+  isOverridden: boolean;
+}
+
+interface CustomModuleRow {
+  id: string;
+  title: string;
+  phase: Phase;
+  timeToResult: string;
+  why: string;
+  steps: string[];
+  score: number;
+  businessTypes: BusinessType[];
+}
 
 interface FormState {
   title: string;
@@ -43,33 +54,46 @@ const EMPTY_FORM: FormState = {
 };
 
 export default function AdminModulesTab() {
-  const [version, setVersion] = useState(0); // для форс-обновления после сохранения в localStorage
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [baseModules, setBaseModules] = useState<BaseModuleRow[]>([]);
+  const [customModules, setCustomModules] = useState<CustomModuleRow[]>([]);
   const [target, setTarget] = useState<{ kind: "base" | "custom" | "new"; id: string | null } | null>(
     null
   );
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
 
-  const baseModules = useMemo(() => getEditableBaseModules(), [version]);
-  const customModules = useMemo(() => getCustomModules(), [version]);
+  const load = () => {
+    fetch("/api/admin/modules")
+      .then(async (res) => {
+        if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || "Ошибка загрузки");
+        return res.json();
+      })
+      .then((data) => {
+        setBaseModules(data.baseModules);
+        setCustomModules(data.customModules);
+      })
+      .catch((e) => setError(String(e.message || e)))
+      .finally(() => setLoaded(true));
+  };
 
-  const refresh = () => setVersion((v) => v + 1);
+  useEffect(load, []);
 
-  const openEditBase = (id: string) => {
-    const m = baseModules.find((x) => x.id === id);
-    if (!m) return;
+  const openEditBase = (m: BaseModuleRow) => {
     setForm({
       title: m.title,
-      why: m.why({} as never),
+      why: m.why,
       timeToResult: m.timeToResult,
       steps: [...m.steps],
       phase: m.phase,
       score: 5,
       businessTypes: [],
     });
-    setTarget({ kind: "base", id });
+    setTarget({ kind: "base", id: m.id });
   };
 
-  const openEditCustom = (m: CustomModule) => {
+  const openEditCustom = (m: CustomModuleRow) => {
     setForm({
       title: m.title,
       why: m.why,
@@ -108,140 +132,170 @@ export default function AdminModulesTab() {
     }));
   };
 
-  const save = () => {
+  const save = async () => {
     if (!target) return;
+    setSaving(true);
     const cleanSteps = form.steps.map((s) => s.trim()).filter(Boolean);
 
-    if (target.kind === "base" && target.id) {
-      saveOverride(target.id, {
-        title: form.title.trim(),
-        why: form.why.trim(),
-        timeToResult: form.timeToResult.trim(),
-        steps: cleanSteps,
-      });
-    } else {
-      const id = target.kind === "custom" && target.id ? target.id : `custom-${Date.now()}`;
-      saveCustomModule({
-        id,
-        title: form.title.trim(),
-        phase: form.phase,
-        timeToResult: form.timeToResult.trim(),
-        why: form.why.trim(),
-        steps: cleanSteps,
-        score: form.score,
-        businessTypes: form.businessTypes,
-      });
+    try {
+      if (target.kind === "base" && target.id) {
+        const res = await fetch("/api/admin/modules/override", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            moduleId: target.id,
+            title: form.title.trim(),
+            why: form.why.trim(),
+            timeToResult: form.timeToResult.trim(),
+            steps: cleanSteps,
+          }),
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || "Ошибка сохранения");
+      } else {
+        const res = await fetch("/api/admin/modules/custom", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: target.kind === "custom" ? target.id : undefined,
+            title: form.title.trim(),
+            phase: form.phase,
+            timeToResult: form.timeToResult.trim(),
+            why: form.why.trim(),
+            steps: cleanSteps,
+            score: form.score,
+            businessTypes: form.businessTypes,
+          }),
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || "Ошибка сохранения");
+      }
+      closeForm();
+      load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Ошибка сохранения");
+    } finally {
+      setSaving(false);
     }
-    closeForm();
-    refresh();
   };
 
-  const resetBase = (id: string) => {
-    clearOverride(id);
-    refresh();
+  const resetBase = async (moduleId: string) => {
+    await fetch(`/api/admin/modules/override?moduleId=${encodeURIComponent(moduleId)}`, {
+      method: "DELETE",
+    });
+    load();
   };
 
-  const removeCustom = (id: string) => {
-    deleteCustomModule(id);
-    refresh();
+  const removeCustom = async (id: string) => {
+    await fetch(`/api/admin/modules/custom?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+    load();
   };
 
   return (
     <div>
       <div className="mb-5 rounded-xl border border-violet/30 bg-violet-soft p-4 text-sm text-violet">
-        Правки здесь по-настоящему меняют планы, которые получают пользователи в этом браузере:
-        текст встроенных пунктов можно переписать, а формулу их приоритета — только у новых
-        пунктов, которые вы добавляете сами.
+        Правки здесь хранятся в базе данных и реально меняют планы, которые получают{" "}
+        <b>все</b> пользователи сайта — не только в этом браузере.
       </div>
 
-      <div className="mb-8">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="font-display text-base text-ink-900">Встроенные пункты</h3>
+      {error && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3.5 text-sm text-red-700">
+          {error}
         </div>
-        <div className="space-y-2">
-          {baseModules.map((m) => (
-            <div
-              key={m.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-white p-4"
-            >
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-ink-900">{m.title}</span>
-                  {m.isOverridden && (
-                    <span className="rounded-full bg-violet-soft px-2 py-0.5 text-[11px] text-violet">
-                      Изменено
-                    </span>
-                  )}
-                </div>
-                <span className="text-xs text-muted">{PHASE_LABELS[m.phase]}</span>
-              </div>
-              <div className="flex gap-2">
-                {m.isOverridden && (
-                  <button
-                    onClick={() => resetBase(m.id)}
-                    className="rounded-full border border-ink-900/20 px-3 py-1.5 text-xs font-medium text-ink-900 hover:bg-soft"
-                  >
-                    Сбросить
-                  </button>
-                )}
-                <button
-                  onClick={() => openEditBase(m.id)}
-                  className="rounded-full bg-ink-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-ink-800"
-                >
-                  Редактировать
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
 
-      <div className="mb-8">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="font-display text-base text-ink-900">Добавленные пункты</h3>
-          <button
-            onClick={openNew}
-            className="rounded-full bg-brand px-4 py-2 text-sm font-extrabold text-ink-900 hover:bg-brand/90"
-          >
-            + Добавить пункт
-          </button>
-        </div>
-        {customModules.length === 0 && (
-          <p className="text-sm text-muted">Пока ничего не добавлено.</p>
-        )}
-        <div className="space-y-2">
-          {customModules.map((m) => (
-            <div
-              key={m.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-white p-4"
-            >
-              <div>
-                <span className="font-medium text-ink-900">{m.title}</span>
-                <div className="text-xs text-muted">
-                  {PHASE_LABELS[m.phase]} · приоритет {m.score} ·{" "}
-                  {m.businessTypes.length === 0
-                    ? "все типы бизнеса"
-                    : `${m.businessTypes.length} тип(ов) бизнеса`}
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => removeCustom(m.id)}
-                  className="rounded-full border border-ink-900/20 px-3 py-1.5 text-xs font-medium text-ink-900 hover:bg-soft"
-                >
-                  Удалить
-                </button>
-                <button
-                  onClick={() => openEditCustom(m)}
-                  className="rounded-full bg-ink-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-ink-800"
-                >
-                  Редактировать
-                </button>
-              </div>
+      {!loaded && <p className="text-sm text-muted">Загрузка…</p>}
+
+      {loaded && (
+        <>
+          <div className="mb-8">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="font-display text-base text-ink-900">Встроенные пункты</h3>
             </div>
-          ))}
-        </div>
-      </div>
+            <div className="space-y-2">
+              {baseModules.map((m) => (
+                <div
+                  key={m.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-white p-4"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-ink-900">{m.title}</span>
+                      {m.isOverridden && (
+                        <span className="rounded-full bg-violet-soft px-2 py-0.5 text-[11px] text-violet">
+                          Изменено
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-muted">{PHASE_LABELS[m.phase]}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    {m.isOverridden && (
+                      <button
+                        onClick={() => resetBase(m.id)}
+                        className="rounded-full border border-ink-900/20 px-3 py-1.5 text-xs font-medium text-ink-900 hover:bg-soft"
+                      >
+                        Сбросить
+                      </button>
+                    )}
+                    <button
+                      onClick={() => openEditBase(m)}
+                      className="rounded-full bg-ink-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-ink-800"
+                    >
+                      Редактировать
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mb-8">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="font-display text-base text-ink-900">Добавленные пункты</h3>
+              <button
+                onClick={openNew}
+                className="rounded-full bg-brand px-4 py-2 text-sm font-extrabold text-ink-900 hover:bg-brand/90"
+              >
+                + Добавить пункт
+              </button>
+            </div>
+            {customModules.length === 0 && (
+              <p className="text-sm text-muted">Пока ничего не добавлено.</p>
+            )}
+            <div className="space-y-2">
+              {customModules.map((m) => (
+                <div
+                  key={m.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-white p-4"
+                >
+                  <div>
+                    <span className="font-medium text-ink-900">{m.title}</span>
+                    <div className="text-xs text-muted">
+                      {PHASE_LABELS[m.phase]} · приоритет {m.score} ·{" "}
+                      {m.businessTypes.length === 0
+                        ? "все типы бизнеса"
+                        : `${m.businessTypes.length} тип(ов) бизнеса`}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => removeCustom(m.id)}
+                      className="rounded-full border border-ink-900/20 px-3 py-1.5 text-xs font-medium text-ink-900 hover:bg-soft"
+                    >
+                      Удалить
+                    </button>
+                    <button
+                      onClick={() => openEditCustom(m)}
+                      className="rounded-full bg-ink-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-ink-800"
+                    >
+                      Редактировать
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       {target && (
         <div
@@ -255,7 +309,11 @@ export default function AdminModulesTab() {
             className="flex max-h-[90vh] w-full flex-col overflow-y-auto rounded-t-2xl bg-white p-5 sm:max-w-lg sm:rounded-2xl sm:p-6"
           >
             <h3 className="mb-4 font-display text-lg text-ink-900">
-              {target.kind === "base" ? "Редактировать пункт" : target.kind === "new" ? "Новый пункт" : "Редактировать добавленный пункт"}
+              {target.kind === "base"
+                ? "Редактировать пункт"
+                : target.kind === "new"
+                ? "Новый пункт"
+                : "Редактировать добавленный пункт"}
             </h3>
 
             <div className="grid gap-3">
@@ -378,9 +436,10 @@ export default function AdminModulesTab() {
               </button>
               <button
                 onClick={save}
-                className="rounded-full bg-ink-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-ink-800"
+                disabled={saving}
+                className="rounded-full bg-ink-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-ink-800 disabled:opacity-50"
               >
-                Сохранить
+                {saving ? "Сохраняем…" : "Сохранить"}
               </button>
             </div>
           </div>

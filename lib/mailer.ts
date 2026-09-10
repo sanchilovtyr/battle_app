@@ -27,7 +27,12 @@ function getTransporter() {
   return cachedTransporter;
 }
 
-export async function sendMail(params: { to: string; subject: string; html: string }) {
+export async function sendMail(params: {
+  to: string;
+  subject: string;
+  html: string;
+  attachments?: { filename: string; content: Buffer; contentType?: string }[];
+}) {
   const transporter = getTransporter();
   const from = process.env.SMTP_FROM || process.env.SMTP_USER;
 
@@ -36,6 +41,7 @@ export async function sendMail(params: { to: string; subject: string; html: stri
     to: params.to,
     subject: params.subject,
     html: params.html,
+    attachments: params.attachments,
   });
 }
 
@@ -65,6 +71,36 @@ export async function sendRegistrationEmail(email: string) {
     to: email,
     subject: "Регистрация на сервисе «Ключевое слово» подтверждена",
     html,
+  });
+}
+
+export async function sendPlanPdfEmail(email: string, businessName: string, pdfBytes: Uint8Array) {
+  const siteUrl = process.env.NEXTAUTH_URL || "";
+
+  const html = `
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; color: #111525;">
+      <h2 style="margin-bottom: 8px;">Ваш план продвижения</h2>
+      <p>Здравствуйте!</p>
+      <p>
+        Во вложении — план продвижения для «<b>${businessName}</b>» в PDF.
+      </p>
+      <p>
+        <a href="${siteUrl}/account" style="color: #7658F6;">Открыть в личном кабинете →</a>
+      </p>
+    </div>
+  `;
+
+  await sendMail({
+    to: email,
+    subject: `План продвижения — ${businessName}`,
+    html,
+    attachments: [
+      {
+        filename: "plan.pdf",
+        content: Buffer.from(pdfBytes),
+        contentType: "application/pdf",
+      },
+    ],
   });
 }
 

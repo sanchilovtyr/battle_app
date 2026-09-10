@@ -55,6 +55,32 @@ model SupportMessage {
   createdAt DateTime @default(now())
 }
 
+/// Правки текста встроенных модулей (lib/modules.ts) — переопределяют
+/// title/why/timeToResult/steps конкретного модуля по его id из кода
+model ModuleOverride {
+  moduleId     String   @id
+  title        String
+  why          String
+  timeToResult String
+  steps        Json // string[]
+  updatedAt    DateTime @updatedAt
+}
+
+/// Полностью новые модули, добавленные из админки — со своим простым
+/// правилом скоринга (приоритет + типы бизнеса), а не кодом
+model CustomModule {
+  id            String   @id @default(cuid())
+  title         String
+  phase         String // foundation | traffic | retention
+  timeToResult  String
+  why           String
+  steps         Json // string[]
+  score         Int
+  businessTypes Json // BusinessType[], пусто = все типы
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
 /// Платежи ЮKassa — журнал для сверки и защиты от повторной обработки вебхука
 model Payment {
   id             String   @id @default(cuid())

@@ -1,9 +1,6 @@
 import { MODULES } from "./modules";
 import { Answers, BusinessType, Phase, PlanModule } from "./types";
 
-const OVERRIDES_KEY = "promoplan_admin_overrides";
-const CUSTOM_MODULES_KEY = "promoplan_admin_custom_modules";
-
 /** Правки контента встроенных модулей: текст можно менять, формулу скоринга — нет */
 export interface ModuleOverride {
   title: string;
@@ -14,7 +11,7 @@ export interface ModuleOverride {
 
 /** Новый модуль, добавленный из админки. Скоринг здесь — простое правило,
  *  а не произвольная функция, чтобы его можно было безопасно задать формой */
-export interface CustomModule {
+export interface CustomModuleData {
   id: string;
   title: string;
   phase: Phase;
@@ -26,74 +23,11 @@ export interface CustomModule {
   businessTypes: BusinessType[];
 }
 
-function safeGet(key: string): string | null {
-  try {
-    return window.localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function safeSet(key: string, value: string) {
-  try {
-    window.localStorage.setItem(key, value);
-  } catch {
-    // не критично для прототипа
-  }
-}
-
-export function getOverrides(): Record<string, ModuleOverride> {
-  const raw = safeGet(OVERRIDES_KEY);
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw) as Record<string, ModuleOverride>;
-  } catch {
-    return {};
-  }
-}
-
-export function saveOverride(moduleId: string, override: ModuleOverride) {
-  const all = getOverrides();
-  all[moduleId] = override;
-  safeSet(OVERRIDES_KEY, JSON.stringify(all));
-}
-
-export function clearOverride(moduleId: string) {
-  const all = getOverrides();
-  delete all[moduleId];
-  safeSet(OVERRIDES_KEY, JSON.stringify(all));
-}
-
-export function getCustomModules(): CustomModule[] {
-  const raw = safeGet(CUSTOM_MODULES_KEY);
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw) as CustomModule[];
-  } catch {
-    return [];
-  }
-}
-
-export function saveCustomModule(module: CustomModule) {
-  const all = getCustomModules();
-  const idx = all.findIndex((m) => m.id === module.id);
-  if (idx >= 0) {
-    all[idx] = module;
-  } else {
-    all.push(module);
-  }
-  safeSet(CUSTOM_MODULES_KEY, JSON.stringify(all));
-}
-
-export function deleteCustomModule(id: string) {
-  const next = getCustomModules().filter((m) => m.id !== id);
-  safeSet(CUSTOM_MODULES_KEY, JSON.stringify(next));
-}
-
-/** Базовые модули с применёнными правками из админки (только для чтения текста —
- *  формула score у встроенных модулей всегда остаётся из кода, её через форму не задать) */
-export function getEditableBaseModules(): (PlanModule & { isOverridden: boolean })[] {
-  const overrides = getOverrides();
+/** Базовые модули с применёнными правками (только текст — формула score
+ *  у встроенных модулей всегда остаётся из кода, её через форму не задать) */
+export function getEditableBaseModules(
+  overrides: Record<string, ModuleOverride>
+): (PlanModule & { isOverridden: boolean })[] {
   return MODULES.map((m) => {
     const o = overrides[m.id];
     if (!o) return { ...m, isOverridden: false };
@@ -108,7 +42,7 @@ export function getEditableBaseModules(): (PlanModule & { isOverridden: boolean 
   });
 }
 
-function customModuleToPlanModule(c: CustomModule): PlanModule {
+function customModuleToPlanModule(c: CustomModuleData): PlanModule {
   return {
     id: c.id,
     title: c.title,
@@ -123,9 +57,12 @@ function customModuleToPlanModule(c: CustomModule): PlanModule {
 }
 
 /** Полный список модулей, которым в итоге пользуется движок правил:
- *  встроенные (с учётом правок из админки) + добавленные из админки */
-export function getEffectiveModules(): PlanModule[] {
-  const base = getEditableBaseModules().map(({ isOverridden, ...m }) => m);
-  const custom = getCustomModules().map(customModuleToPlanModule);
+ *  встроенные (с учётом правок) + добавленные из админки */
+export function buildEffectiveModules(
+  overrides: Record<string, ModuleOverride>,
+  customModules: CustomModuleData[]
+): PlanModule[] {
+  const base = getEditableBaseModules(overrides).map(({ isOverridden, ...m }) => m);
+  const custom = customModules.map(customModuleToPlanModule);
   return [...base, ...custom];
 }

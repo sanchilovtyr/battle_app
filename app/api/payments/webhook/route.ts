@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getYookassaPayment } from "@/lib/yookassa";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 
 const PERIOD_DAYS = 30;
 
 export async function POST(req: Request) {
+  // Мягкий лимит на весь адрес — легитимные уведомления от ЮKassa сюда
+  // не упрутся, а вот направленный поток поддельных запросов притормозится
+  if (!checkRateLimit(`webhook:${getClientIp(req)}`, 60, 60 * 1000)) {
+    return NextResponse.json({ error: "Слишком много запросов" }, { status: 429 });
+  }
+
   let event: { object?: { id?: string } };
   try {
     event = await req.json();

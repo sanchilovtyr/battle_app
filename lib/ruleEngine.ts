@@ -1,5 +1,4 @@
 import { Answers, GeneratedPlan, PlanEntry, Phase, PlanModule } from "./types";
-import { getEffectiveModules } from "./adminModules";
 
 const PHASE_LIMITS: Record<Phase, number> = {
   foundation: 3,
@@ -33,8 +32,7 @@ function buildEntries(modules: PlanModule[], a: Answers, phase: Phase): PlanEntr
     .slice(0, PHASE_LIMITS[phase]);
 }
 
-export function generatePlan(a: Answers): GeneratedPlan {
-  const modules = getEffectiveModules();
+export function generatePlan(modules: PlanModule[], a: Answers): GeneratedPlan {
   const foundation = buildEntries(modules, a, "foundation");
   const traffic = buildEntries(modules, a, "traffic");
   const retention = buildEntries(modules, a, "retention");

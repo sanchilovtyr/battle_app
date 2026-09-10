@@ -2,10 +2,19 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { sendRegistrationEmail, sendAdminNewUserNotification } from "@/lib/mailer";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(req: Request) {
+  const ip = getClientIp(req);
+  if (!checkRateLimit(`register:${ip}`, 5, 15 * 60 * 1000)) {
+    return NextResponse.json(
+      { error: "Слишком много попыток регистрации. Попробуйте позже." },
+      { status: 429 }
+    );
+  }
+
   const body = await req.json().catch(() => null);
   const email = String(body?.email ?? "").trim().toLowerCase();
   const password = String(body?.password ?? "");

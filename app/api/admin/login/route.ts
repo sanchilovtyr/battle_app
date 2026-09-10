@@ -1,7 +1,24 @@
 import { NextResponse } from "next/server";
+import { timingSafeEqual } from "crypto";
 import { createAdminToken, ADMIN_COOKIE_NAME } from "@/lib/adminAuth";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
+
+function safeCompare(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
 
 export async function POST(req: Request) {
+  const ip = getClientIp(req);
+  if (!checkRateLimit(`admin-login:${ip}`, 10, 15 * 60 * 1000)) {
+    return NextResponse.json(
+      { error: "Слишком много попыток входа. Попробуйте позже." },
+      { status: 429 }
+    );
+  }
+
   const body = await req.json().catch(() => ({}));
   const password = String(body?.password ?? "");
   const expected = process.env.ADMIN_PASSWORD;
@@ -13,7 +30,7 @@ export async function POST(req: Request) {
     );
   }
 
-  if (password !== expected) {
+  if (!safeCompare(password, expected)) {
     return NextResponse.json({ error: "Неверный пароль" }, { status: 401 });
   }
 

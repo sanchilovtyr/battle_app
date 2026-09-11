@@ -15,6 +15,7 @@ interface ApiSubscription {
   planId: PlanId;
   status: "active" | "cancelled";
   currentPeriodEnd: string | null;
+  hasPaymentMethod: boolean;
 }
 
 function formatDate(iso: string) {
@@ -35,6 +36,7 @@ export default function AccountPage() {
     planId: "trial",
     status: "active",
     currentPeriodEnd: null,
+    hasPaymentMethod: false,
   });
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [savedNotice, setSavedNotice] = useState(false);
@@ -52,6 +54,7 @@ export default function AccountPage() {
             planId: data.subscription.planId,
             status: data.subscription.status,
             currentPeriodEnd: data.subscription.currentPeriodEnd,
+            hasPaymentMethod: Boolean(data.subscription.hasPaymentMethod),
           });
         }
       })
@@ -100,6 +103,23 @@ export default function AccountPage() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       setActionError(data.error || "Не удалось возобновить подписку");
+      return;
+    }
+    loadMe();
+  };
+
+  const handleUnlinkCard = async () => {
+    if (
+      !window.confirm(
+        "Отвязать сохранённую карту? После этого автопродление перестанет работать, пока вы не оплатите заново."
+      )
+    ) {
+      return;
+    }
+    setActionError(null);
+    const res = await fetch("/api/payments/unlink-card", { method: "POST" });
+    if (!res.ok) {
+      setActionError("Не удалось отвязать карту");
       return;
     }
     loadMe();
@@ -295,9 +315,26 @@ export default function AccountPage() {
             </p>
           )}
           <p className="mt-3 text-xs text-muted">
-            Оплата проходит через ЮKassa. Способ оплаты сохраняется для автопродления — отменить
-            его можно в любой момент кнопкой выше, доступ сохранится до конца периода.
+            Оплата проходит через ЮKassa. Способ оплаты сохраняется для автопродления — отвязать
+            его можно отдельно ниже, доступ по тарифу это не затрагивает.
           </p>
+
+          {subscription.hasPaymentMethod && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-soft p-4">
+              <div>
+                <p className="text-sm font-medium text-ink-900">Сохранённый способ оплаты</p>
+                <p className="text-xs text-muted">
+                  Привязан для автоматического продления подписки
+                </p>
+              </div>
+              <button
+                onClick={handleUnlinkCard}
+                className="rounded-full border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+              >
+                Отвязать карту
+              </button>
+            </div>
+          )}
         </section>
 
         {/* BUSINESSES */}

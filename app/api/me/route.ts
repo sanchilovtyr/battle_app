@@ -16,7 +16,14 @@ export async function GET() {
     email: full.email,
     name: full.name,
     phone: full.phone,
-    subscription: full.subscription,
+    subscription: full.subscription
+      ? {
+          planId: full.subscription.planId,
+          status: full.subscription.status,
+          currentPeriodEnd: full.subscription.currentPeriodEnd,
+          hasPaymentMethod: Boolean(full.subscription.paymentMethodId),
+        }
+      : null,
   });
 }
 

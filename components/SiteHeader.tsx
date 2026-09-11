@@ -1,7 +1,22 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useSession } from "next-auth/react";
 
 export default function SiteHeader({ ctaHref = "/#wizard" }: { ctaHref?: string }) {
+  const { status } = useSession();
+  const [hasUnreadNews, setHasUnreadNews] = useState(false);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    fetch("/api/news")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setHasUnreadNews(Boolean(data?.hasUnread)))
+      .catch(() => {});
+  }, [status]);
+
   return (
     <header className="border-b border-white/10 bg-ink-900">
       <div className="mx-auto flex h-[68px] max-w-6xl items-center justify-between gap-3 px-4 sm:h-[76px] sm:gap-4 sm:px-5 md:px-8">
@@ -27,15 +42,21 @@ export default function SiteHeader({ ctaHref = "/#wizard" }: { ctaHref?: string 
           <Link
             href="/account"
             aria-label="Личный кабинет"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/25 text-[11px] font-bold text-white transition-colors hover:bg-white/10 sm:hidden"
+            className="relative flex h-9 w-9 items-center justify-center rounded-full border border-white/25 text-[11px] font-bold text-white transition-colors hover:bg-white/10 sm:hidden"
           >
             ЛК
+            {hasUnreadNews && (
+              <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-ink-900" />
+            )}
           </Link>
           <Link
             href="/account"
-            className="hidden text-sm font-medium text-white/75 hover:text-white sm:block"
+            className="relative hidden text-sm font-medium text-white/75 hover:text-white sm:block"
           >
             Личный кабинет
+            {hasUnreadNews && (
+              <span className="absolute -right-3 -top-1 h-2 w-2 rounded-full bg-brand" />
+            )}
           </Link>
           <a
             href={ctaHref}

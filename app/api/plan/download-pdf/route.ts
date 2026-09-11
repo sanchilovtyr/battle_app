@@ -27,10 +27,17 @@ export async function POST(req: Request) {
       ? { planId: sub.planId, status: sub.status, currentPeriodEnd: sub.currentPeriodEnd }
       : null
   );
-  const includeRetention = getPlan(effectivePlanId).fullPlanAccess;
+  const effectivePlan = getPlan(effectivePlanId);
+
+  if (!effectivePlan.pdfExportAccess) {
+    return NextResponse.json(
+      { error: "Экспорт в PDF доступен на тарифе «Команда»" },
+      { status: 403 }
+    );
+  }
 
   try {
-    const pdfBytes = await generatePlanPdf(businessName, plan, includeRetention);
+    const pdfBytes = await generatePlanPdf(businessName, plan, effectivePlan.fullPlanAccess);
     return new NextResponse(Buffer.from(pdfBytes), {
       headers: {
         "Content-Type": "application/pdf",

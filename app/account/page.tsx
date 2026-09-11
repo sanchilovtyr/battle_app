@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import SiteHeader from "@/components/SiteHeader";
 import SupportSection from "@/components/SupportSection";
+import NewsSection from "@/components/NewsSection";
 import { deleteThreadForEmail } from "@/lib/support";
 import { getPlan, PlanId } from "@/lib/plans";
 import { computeEffectivePlanId } from "@/lib/subscriptionUtils";
@@ -178,6 +179,8 @@ export default function AccountPage() {
             {actionError}
           </div>
         )}
+
+        <NewsSection />
 
         {/* PROFILE */}
         <section className="mb-8 rounded-2xl border border-line bg-white p-6">

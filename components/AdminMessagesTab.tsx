@@ -114,12 +114,24 @@ function ThreadCard({
 }) {
   const [open, setOpen] = useState(false);
   const last = thread.messages[thread.messages.length - 1];
+  const isUnread = last.from === "user";
 
   return (
-    <div className="rounded-2xl border border-line bg-white p-5">
+    <div
+      className={`rounded-2xl border p-5 ${
+        isUnread ? "border-green-300 bg-green-50" : "border-line bg-white"
+      }`}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="font-medium text-ink-900">{thread.email}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-medium text-ink-900">{thread.email}</p>
+            {isUnread && (
+              <span className="rounded-full bg-green-600 px-2 py-0.5 text-[11px] font-medium text-white">
+                Новое
+              </span>
+            )}
+          </div>
           <p className="text-xs text-muted">
             {thread.messages.length} сообщений · последнее {formatDateTime(thread.lastAt)} от{" "}
             {last.from === "admin" ? "поддержки" : "пользователя"}

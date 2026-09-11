@@ -610,25 +610,39 @@ export default function PlanBuilder() {
 
           <div className="print:hidden flex flex-col gap-3 rounded-xl border border-line bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted">
-              {planMeta.fullPlanAccess
-                ? `Тариф «${planMeta.name}» открывает все этапы плана — скачайте PDF или получите его на почту.`
+              {planMeta.pdfExportAccess
+                ? `Тариф «${planMeta.name}» открывает экспорт плана — скачайте PDF или получите его на почту.`
+                : planMeta.fullPlanAccess
+                ? "Экспорт плана в PDF и отправка на почту доступны на тарифе «Команда»."
                 : "Пробный план показывает первые 2 этапа из 3. Подписка открывает все этапы, чек-листы и обновления."}
             </p>
             <div className="flex shrink-0 flex-wrap gap-2">
-              <button
-                onClick={downloadPdf}
-                disabled={downloadingPdf}
-                className="rounded-full border border-ink-900/20 px-4 py-2 text-sm font-medium text-ink-900 transition-colors hover:bg-ink-900 hover:text-white disabled:opacity-50"
-              >
-                {downloadingPdf ? "Готовим…" : "Скачать PDF"}
-              </button>
-              <button
-                onClick={emailPdf}
-                disabled={sendingPdf}
-                className="rounded-full border border-ink-900/20 px-4 py-2 text-sm font-medium text-ink-900 transition-colors hover:bg-ink-900 hover:text-white disabled:opacity-50"
-              >
-                {sendingPdf ? "Отправляем…" : "Получить PDF на почту"}
-              </button>
+              {planMeta.pdfExportAccess && (
+                <>
+                  <button
+                    onClick={downloadPdf}
+                    disabled={downloadingPdf}
+                    className="rounded-full border border-ink-900/20 px-4 py-2 text-sm font-medium text-ink-900 transition-colors hover:bg-ink-900 hover:text-white disabled:opacity-50"
+                  >
+                    {downloadingPdf ? "Готовим…" : "Скачать PDF"}
+                  </button>
+                  <button
+                    onClick={emailPdf}
+                    disabled={sendingPdf}
+                    className="rounded-full border border-ink-900/20 px-4 py-2 text-sm font-medium text-ink-900 transition-colors hover:bg-ink-900 hover:text-white disabled:opacity-50"
+                  >
+                    {sendingPdf ? "Отправляем…" : "Получить PDF на почту"}
+                  </button>
+                </>
+              )}
+              {!planMeta.pdfExportAccess && (
+                <a
+                  href="/#pricing"
+                  className="rounded-full border border-ink-900/20 px-4 py-2 text-sm font-medium text-ink-900 transition-colors hover:bg-ink-900 hover:text-white"
+                >
+                  Перейти на «Команда»
+                </a>
+              )}
               <button
                 onClick={startNewBusiness}
                 className="rounded-full bg-ink-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-800"

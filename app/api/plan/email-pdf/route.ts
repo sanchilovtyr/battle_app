@@ -38,10 +38,17 @@ export async function POST(req: Request) {
       ? { planId: sub.planId, status: sub.status, currentPeriodEnd: sub.currentPeriodEnd }
       : null
   );
-  const includeRetention = getPlan(effectivePlanId).fullPlanAccess;
+  const effectivePlan = getPlan(effectivePlanId);
+
+  if (!effectivePlan.pdfExportAccess) {
+    return NextResponse.json(
+      { error: "Отправка PDF на почту доступна на тарифе «Команда»" },
+      { status: 403 }
+    );
+  }
 
   try {
-    const pdfBytes = await generatePlanPdf(businessName, plan, includeRetention);
+    const pdfBytes = await generatePlanPdf(businessName, plan, effectivePlan.fullPlanAccess);
     await sendPlanPdfEmail(user.email, businessName, pdfBytes);
     return NextResponse.json({ ok: true });
   } catch (e) {

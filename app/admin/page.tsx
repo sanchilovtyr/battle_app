@@ -6,13 +6,15 @@ import AdminUsersTab from "@/components/AdminUsersTab";
 import AdminModulesTab from "@/components/AdminModulesTab";
 import AdminRevenueTab from "@/components/AdminRevenueTab";
 import AdminMessagesTab from "@/components/AdminMessagesTab";
+import AdminNewsTab from "@/components/AdminNewsTab";
 
-type Tab = "users" | "modules" | "revenue" | "messages";
+type Tab = "users" | "modules" | "revenue" | "messages" | "news";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "users", label: "Пользователи" },
   { id: "messages", label: "Сообщения" },
   { id: "modules", label: "Модули плана" },
+  { id: "news", label: "Новости" },
   { id: "revenue", label: "Выручка" },
 ];
 
@@ -138,6 +140,7 @@ export default function AdminPage() {
         {tab === "users" && <AdminUsersTab onMessage={openMessageComposer} />}
         {tab === "messages" && <AdminMessagesTab prefillEmail={messagePrefill} />}
         {tab === "modules" && <AdminModulesTab />}
+        {tab === "news" && <AdminNewsTab />}
         {tab === "revenue" && <AdminRevenueTab />}
       </div>
     </main>

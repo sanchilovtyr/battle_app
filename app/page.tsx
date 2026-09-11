@@ -37,7 +37,7 @@ export default function Home() {
             </a>
             <div className="mt-6 flex flex-wrap gap-5 text-[13px] text-white/70">
               <span className="before:mr-1.5 before:text-brand before:content-['✦']">
-                Первый план бесплатно
+                Первый план продвижения бесплатно
               </span>
             </div>
           </div>
@@ -98,8 +98,8 @@ export default function Home() {
               Подписка, которая окупается первым тестом
             </h2>
             <p className="text-muted">
-              Бесплатно можно построить и посмотреть план один раз. Подписка открывает
-              чек-листы, обновления и экспорт.
+              Бесплатно вы можете построить и посмотреть план один раз. Подписка открывает
+              чек-листы, обновления, экспорт и многое другое.
             </p>
           </div>
           <PricingSection />

@@ -46,14 +46,14 @@ export default function Home() {
       </section>
 
       {/* ABOUT */}
-      <section className="bg-white py-16 md:py-24">
+      <section className="bg-white pt-16 pb-8 md:py-24">
         <div className="mx-auto max-w-6xl px-5 md:px-8">
           <AboutSection />
         </div>
       </section>
 
       {/* JOURNEY */}
-      <section className="bg-gradient-to-b from-white to-soft py-16 md:py-24">
+      <section className="bg-gradient-to-b from-white to-soft pt-8 pb-16 md:py-24">
         <div className="mx-auto max-w-6xl px-5 md:px-8">
           <div className="mx-auto mb-12 max-w-xl text-center">
             <h2 className="mb-3 font-display text-3xl tracking-tight text-ink-900 md:text-4xl">

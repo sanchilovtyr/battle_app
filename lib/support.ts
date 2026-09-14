@@ -1,4 +1,5 @@
 const MESSAGES_KEY = "promoplan_support_messages";
+const CLOSED_KEY = "promoplan_support_closed_threads";
 
 export interface SupportMessage {
   id: string;
@@ -13,6 +14,7 @@ export interface SupportThread {
   email: string;
   messages: SupportMessage[];
   lastAt: string;
+  closed: boolean;
 }
 
 function safeGet(key: string): string | null {
@@ -45,15 +47,44 @@ function saveAll(messages: SupportMessage[]) {
   safeSet(MESSAGES_KEY, JSON.stringify(messages));
 }
 
+function getClosedMap(): Record<string, boolean> {
+  const raw = safeGet(CLOSED_KEY);
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as Record<string, boolean>;
+  } catch {
+    return {};
+  }
+}
+
+function saveClosedMap(map: Record<string, boolean>) {
+  safeSet(CLOSED_KEY, JSON.stringify(map));
+}
+
+export function isThreadClosed(email: string): boolean {
+  const target = email.trim().toLowerCase();
+  return Boolean(getClosedMap()[target]);
+}
+
+/** Открыть/закрыть тикет. Закрывать может только админ — открывает либо админ
+ *  вручную, либо это происходит автоматически, когда пользователь пишет снова */
+export function setThreadClosed(email: string, closed: boolean) {
+  const target = email.trim().toLowerCase();
+  const map = getClosedMap();
+  map[target] = closed;
+  saveClosedMap(map);
+}
+
 export function addMessage(
   email: string,
   from: "user" | "admin",
   body: string,
   imageDataUrl?: string
 ): SupportMessage {
+  const target = email.trim().toLowerCase();
   const message: SupportMessage = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    email: email.trim().toLowerCase(),
+    email: target,
     from,
     body: body.trim(),
     ...(imageDataUrl ? { imageDataUrl } : {}),
@@ -61,6 +92,13 @@ export function addMessage(
   };
   const all = [...getAllMessages(), message];
   saveAll(all);
+
+  // Новое сообщение от пользователя автоматически открывает закрытый тикет —
+  // раз человек снова написал, значит вопрос ещё не решён
+  if (from === "user" && isThreadClosed(target)) {
+    setThreadClosed(target, false);
+  }
+
   return message;
 }
 
@@ -75,6 +113,9 @@ export function deleteThreadForEmail(email: string) {
   const target = email.trim().toLowerCase();
   const next = getAllMessages().filter((m) => m.email !== target);
   saveAll(next);
+  const map = getClosedMap();
+  delete map[target];
+  saveClosedMap(map);
 }
 
 /** Группирует все сообщения по пользователю — для обзора в админке */
@@ -90,7 +131,12 @@ export function getThreads(): SupportThread[] {
     const sorted = [...messages].sort(
       (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
-    return { email, messages: sorted, lastAt: sorted[sorted.length - 1].createdAt };
+    return {
+      email,
+      messages: sorted,
+      lastAt: sorted[sorted.length - 1].createdAt,
+      closed: isThreadClosed(email),
+    };
   });
   return threads.sort((a, b) => new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime());
 }

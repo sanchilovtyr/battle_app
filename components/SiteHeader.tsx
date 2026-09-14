@@ -18,7 +18,7 @@ export default function SiteHeader({ ctaHref = "/#wizard" }: { ctaHref?: string 
   }, [status]);
 
   return (
-    <header className="border-b border-white/10 bg-ink-900">
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-ink-900">
       <div className="mx-auto flex h-[68px] max-w-6xl items-center justify-between gap-3 px-4 sm:h-[76px] sm:gap-4 sm:px-5 md:px-8">
         <Link href="/" className="flex shrink-0 items-center">
           <Image

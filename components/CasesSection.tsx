@@ -106,7 +106,7 @@ export default function CasesSection() {
         {CASES.map((c) => (
           <article
             key={c.title}
-            className="flex min-h-[300px] w-[85%] shrink-0 snap-start flex-col rounded-2xl border border-white/10 bg-white/5 p-6 sm:w-[45%] lg:w-[calc(33.333%-12px)]"
+            className="flex min-h-[300px] w-full shrink-0 snap-start flex-col rounded-2xl border border-white/10 bg-white/5 p-6 sm:w-[45%] lg:w-[calc(33.333%-12px)]"
           >
             <div className="flex items-center justify-between gap-2.5">
               <span className="text-[11px] font-extrabold uppercase tracking-wide text-brand">

@@ -214,7 +214,7 @@ export default function AdminModulesTab() {
               {baseModules.map((m) => (
                 <div
                   key={m.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-white p-4"
+                  className="flex flex-col gap-3 rounded-xl border border-line bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
                     <div className="flex items-center gap-2">
@@ -265,7 +265,7 @@ export default function AdminModulesTab() {
               {customModules.map((m) => (
                 <div
                   key={m.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-white p-4"
+                  className="flex flex-col gap-3 rounded-xl border border-line bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
                     <span className="font-medium text-ink-900">{m.title}</span>

@@ -120,12 +120,12 @@ export default function AdminPage() {
               </Link>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:px-0">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                   tab === t.id ? "bg-ink-900 text-white" : "border border-line text-ink-900 hover:bg-soft"
                 }`}
               >

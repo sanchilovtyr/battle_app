@@ -97,62 +97,109 @@ export default function AdminUsersTab({ onMessage }: { onMessage: (email: string
       )}
 
       {users && users.length > 0 && (
-        <div className="overflow-x-auto rounded-2xl border border-line bg-white">
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-line text-xs uppercase tracking-wide text-muted">
-                <th className="p-4 font-medium">Пользователь</th>
-                <th className="p-4 font-medium">Тариф</th>
-                <th className="p-4 font-medium">Статус</th>
-                <th className="p-4 font-medium">Регистрация</th>
-                <th className="p-4 font-medium"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((u) => {
-                const plan = PLANS.find((p) => p.id === u.planId);
-                return (
-                  <tr key={u.id} className="border-b border-line last:border-0">
-                    <td className="p-4">
-                      <div className="font-medium text-ink-900">{u.name || "—"}</div>
-                      <div className="text-muted">{u.email}</div>
-                      {u.phone && <div className="text-muted">{u.phone}</div>}
-                    </td>
-                    <td className="p-4 text-ink-900">{plan?.name ?? u.planId}</td>
-                    <td className="p-4">
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          u.status === "active"
-                            ? "bg-violet-soft text-violet"
-                            : "bg-ink-900/10 text-ink-900/60"
-                        }`}
-                      >
-                        {u.status === "active" ? "Активен" : "Отменён"}
-                      </span>
-                    </td>
-                    <td className="p-4 text-muted">{formatDate(u.createdAt)}</td>
-                    <td className="p-4">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => onMessage(u.email)}
-                          className="rounded-full border border-ink-900/20 px-3 py-1.5 text-xs font-medium text-ink-900 hover:bg-soft"
+        <>
+          {/* Мобильная версия — карточки вместо таблицы */}
+          <div className="space-y-3 md:hidden">
+            {filtered.map((u) => {
+              const plan = PLANS.find((p) => p.id === u.planId);
+              return (
+                <div key={u.id} className="rounded-2xl border border-line bg-white p-4">
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-ink-900">{u.name || "—"}</p>
+                      <p className="truncate text-sm text-muted">{u.email}</p>
+                      {u.phone && <p className="text-sm text-muted">{u.phone}</p>}
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        u.status === "active"
+                          ? "bg-violet-soft text-violet"
+                          : "bg-ink-900/10 text-ink-900/60"
+                      }`}
+                    >
+                      {u.status === "active" ? "Активен" : "Отменён"}
+                    </span>
+                  </div>
+                  <p className="mb-3 text-sm text-muted">
+                    {plan?.name ?? u.planId} · {formatDate(u.createdAt)}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => onMessage(u.email)}
+                      className="flex-1 rounded-full border border-ink-900/20 px-3 py-2 text-xs font-medium text-ink-900 hover:bg-soft"
+                    >
+                      Написать
+                    </button>
+                    <button
+                      onClick={() => deleteUser(u.id, u.email)}
+                      className="flex-1 rounded-full border border-red-200 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50"
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Десктопная версия — таблица */}
+          <div className="hidden overflow-x-auto rounded-2xl border border-line bg-white md:block">
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-line text-xs uppercase tracking-wide text-muted">
+                  <th className="p-4 font-medium">Пользователь</th>
+                  <th className="p-4 font-medium">Тариф</th>
+                  <th className="p-4 font-medium">Статус</th>
+                  <th className="p-4 font-medium">Регистрация</th>
+                  <th className="p-4 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((u) => {
+                  const plan = PLANS.find((p) => p.id === u.planId);
+                  return (
+                    <tr key={u.id} className="border-b border-line last:border-0">
+                      <td className="p-4">
+                        <div className="font-medium text-ink-900">{u.name || "—"}</div>
+                        <div className="text-muted">{u.email}</div>
+                        {u.phone && <div className="text-muted">{u.phone}</div>}
+                      </td>
+                      <td className="p-4 text-ink-900">{plan?.name ?? u.planId}</td>
+                      <td className="p-4">
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            u.status === "active"
+                              ? "bg-violet-soft text-violet"
+                              : "bg-ink-900/10 text-ink-900/60"
+                          }`}
                         >
-                          Написать
-                        </button>
-                        <button
-                          onClick={() => deleteUser(u.id, u.email)}
-                          className="rounded-full border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
-                        >
-                          Удалить
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                          {u.status === "active" ? "Активен" : "Отменён"}
+                        </span>
+                      </td>
+                      <td className="p-4 text-muted">{formatDate(u.createdAt)}</td>
+                      <td className="p-4">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => onMessage(u.email)}
+                            className="rounded-full border border-ink-900/20 px-3 py-1.5 text-xs font-medium text-ink-900 hover:bg-soft"
+                          >
+                            Написать
+                          </button>
+                          <button
+                            onClick={() => deleteUser(u.id, u.email)}
+                            className="rounded-full border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                          >
+                            Удалить
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );

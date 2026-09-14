@@ -103,9 +103,9 @@ export default function AdminMessagesTab({ prefillEmail }: { prefillEmail?: stri
         </form>
       </div>
 
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="font-display text-base text-ink-900">Тикеты</h3>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setFilter("open")}
             className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${

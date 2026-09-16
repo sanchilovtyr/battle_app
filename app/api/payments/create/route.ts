@@ -11,7 +11,7 @@ function rubFromPriceLabel(price: string): number {
 
 export async function POST(req: Request) {
   const user = await getCurrentUser();
-  if (!user) {
+  if (!user?.email) {
     return NextResponse.json({ error: "Сначала зарегистрируйтесь или войдите" }, { status: 401 });
   }
 
@@ -43,6 +43,7 @@ export async function POST(req: Request) {
       returnUrl: `${siteUrl}/account?payment=done`,
       metadata: { userId: user.id, planId },
       savePaymentMethod: true,
+      customerEmail: user.email,
     });
   } catch (e) {
     console.error("YooKassa createPayment failed", e);

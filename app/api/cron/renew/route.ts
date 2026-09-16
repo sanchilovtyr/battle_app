@@ -38,6 +38,7 @@ export async function POST(req: Request) {
       paymentMethodId: { not: null },
       currentPeriodEnd: { lte: dueBefore },
     },
+    include: { user: true },
   });
 
   const results: { userId: string; ok: boolean; error?: string }[] = [];
@@ -45,6 +46,10 @@ export async function POST(req: Request) {
   for (const sub of dueSubscriptions) {
     const plan = getPlan(sub.planId as PlanId);
     if (plan.free || !sub.paymentMethodId) continue;
+    if (!sub.user?.email) {
+      results.push({ userId: sub.userId, ok: false, error: "У пользователя нет email для чека" });
+      continue;
+    }
 
     try {
       const payment = await createYookassaPayment({
@@ -53,6 +58,7 @@ export async function POST(req: Request) {
         returnUrl: process.env.NEXTAUTH_URL || "http://localhost:3000",
         metadata: { userId: sub.userId, planId: sub.planId, renewal: "true" },
         paymentMethodId: sub.paymentMethodId,
+        customerEmail: sub.user.email,
       });
 
       await prisma.payment.create({

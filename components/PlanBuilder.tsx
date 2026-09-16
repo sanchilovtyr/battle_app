@@ -119,6 +119,7 @@ function LockedVectorCard() {
   );
 }
 
+
 function LockedPhaseCard() {
   const meta = PHASE_META.retention;
   return (

@@ -22,6 +22,8 @@ export interface CreatePaymentParams {
   savePaymentMethod?: boolean;
   /** Списание сохранённым способом (автопродление) — без редиректа пользователя */
   paymentMethodId?: string;
+  /** Email покупателя для фискального чека — обязателен по 54-ФЗ для платежей физлиц */
+  customerEmail: string;
 }
 
 export async function createYookassaPayment(params: CreatePaymentParams) {
@@ -30,6 +32,21 @@ export async function createYookassaPayment(params: CreatePaymentParams) {
     description: params.description,
     metadata: params.metadata,
     capture: true,
+    receipt: {
+      customer: { email: params.customerEmail },
+      items: [
+        {
+          description: params.description.slice(0, 128),
+          quantity: "1.00",
+          amount: { value: params.amountRub.toFixed(2), currency: "RUB" },
+          // ИП на УСН обычно работает без НДС — если у вас другая система
+          // налогообложения, этот код нужно будет поменять
+          vat_code: 1,
+          payment_mode: "full_payment",
+          payment_subject: "service",
+        },
+      ],
+    },
   };
 
   if (params.paymentMethodId) {

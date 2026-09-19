@@ -5,6 +5,8 @@ export const EXECUTOR = {
   registeredAt: "06.05.2024",
   country: "Россия",
   city: "Москва",
+  email: "noreply@m-navi.ru",
+  phone: "+7 903 006-49-34",
 };
 
 export const OFFER_PUBLISHED = "1 сентября 2026 года";

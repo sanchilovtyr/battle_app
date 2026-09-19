@@ -146,6 +146,8 @@ function AuthGate({ onDone }: { onDone: () => void }) {
   const [mode, setMode] = useState<"login" | "register">("register");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [agreedOffer, setAgreedOffer] = useState(false);
+  const [agreedPd, setAgreedPd] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -157,6 +159,10 @@ function AuthGate({ onDone }: { onDone: () => void }) {
     }
     if (password.length < 6) {
       setError("Пароль должен быть не короче 6 символов");
+      return;
+    }
+    if (mode === "register" && (!agreedOffer || !agreedPd)) {
+      setError("Нужно отдельно принять оферту и дать согласие на обработку персональных данных");
       return;
     }
     setError(null);
@@ -251,7 +257,7 @@ function AuthGate({ onDone }: { onDone: () => void }) {
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || (mode === "register" && (!agreedOffer || !agreedPd))}
           className="rounded-xl bg-ink-900 px-5 py-4 text-sm font-medium text-white transition-colors hover:bg-ink-800 disabled:opacity-50"
         >
           {submitting
@@ -261,17 +267,36 @@ function AuthGate({ onDone }: { onDone: () => void }) {
             : "Войти"}
         </button>
         {mode === "register" && (
-          <p className="text-xs text-muted">
-            Регистрируясь, вы соглашаетесь с{" "}
-            <Link href="/oferta" target="_blank" className="underline underline-offset-4">
-              договором оферты
-            </Link>{" "}
-            и{" "}
-            <Link href="/privacy" target="_blank" className="underline underline-offset-4">
-              политикой обработки персональных данных
-            </Link>
-            .
-          </p>
+          <div className="grid gap-2">
+            <label className="flex items-start gap-2 text-xs text-muted">
+              <input
+                type="checkbox"
+                checked={agreedOffer}
+                onChange={(e) => setAgreedOffer(e.target.checked)}
+                className="mt-0.5 shrink-0"
+              />
+              <span>
+                Согласен(на) с условиями{" "}
+                <Link href="/oferta" target="_blank" className="underline underline-offset-4">
+                  договора оферты
+                </Link>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-xs text-muted">
+              <input
+                type="checkbox"
+                checked={agreedPd}
+                onChange={(e) => setAgreedPd(e.target.checked)}
+                className="mt-0.5 shrink-0"
+              />
+              <span>
+                Даю согласие на обработку персональных данных на условиях{" "}
+                <Link href="/privacy" target="_blank" className="underline underline-offset-4">
+                  политики обработки персональных данных
+                </Link>
+              </span>
+            </label>
+          </div>
         )}
       </form>
     </div>

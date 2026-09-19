@@ -33,6 +33,10 @@ export default function OfferPage() {
               <p className="mt-3 text-muted">ОГРНИП: {EXECUTOR.ogrnip}</p>
               <p className="text-muted">ИНН: {EXECUTOR.inn}</p>
               <p className="text-muted">Дата регистрации: {EXECUTOR.registeredAt}</p>
+              <p className="mt-3 text-muted">
+                Email для юридически значимых сообщений: {EXECUTOR.email}
+              </p>
+              {EXECUTOR.phone && <p className="text-muted">Телефон: {EXECUTOR.phone}</p>}
             </div>
           </section>
         </div>

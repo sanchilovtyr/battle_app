@@ -8,6 +8,7 @@ import PlanBuilder from "@/components/PlanBuilder";
 import PricingSection from "@/components/PricingSection";
 import ContactSection from "@/components/ContactSection";
 import DisclaimerSection from "@/components/DisclaimerSection";
+import { EXECUTOR } from "@/lib/offer";
 
 export default function Home() {
   return (
@@ -140,6 +141,9 @@ export default function Home() {
           <Link href="/privacy" className="underline underline-offset-4 hover:text-white">
             Политика персональных данных
           </Link>
+          <a href={`mailto:${EXECUTOR.email}`} className="underline underline-offset-4 hover:text-white">
+            {EXECUTOR.email}
+          </a>
         </div>
       </footer>
     </main>

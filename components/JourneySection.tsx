@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
 const STEPS = [
   {
     n: "01",
@@ -17,14 +21,37 @@ const STEPS = [
 ];
 
 export default function JourneySection() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.25 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="relative grid gap-3 md:grid-cols-[repeat(3,1fr)_1.15fr] md:items-stretch">
+    <div ref={containerRef} className="relative grid gap-3 md:grid-cols-[repeat(3,1fr)_1.15fr] md:items-stretch">
       <div className="absolute left-[9%] right-[9%] top-[39px] hidden border-t-2 border-dashed border-line md:block" />
 
       {STEPS.map((s, i) => (
         <article
           key={s.n}
-          className="relative z-10 rounded-2xl border border-line bg-white p-5 pt-4.5 md:p-6"
+          style={{ transitionDelay: visible ? `${i * 120}ms` : "0ms" }}
+          className={`relative z-10 rounded-2xl border border-line bg-white p-5 pt-4.5 transition-all duration-500 ease-out motion-reduce:transition-none md:p-6 ${
+            visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+          }`}
         >
           <div
             className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-extrabold ${
@@ -42,7 +69,12 @@ export default function JourneySection() {
         </article>
       ))}
 
-      <article className="relative z-10 flex min-h-[215px] flex-col justify-between rounded-2xl border border-ink-900 bg-ink-900 p-6 text-white">
+      <article
+        style={{ transitionDelay: visible ? `${STEPS.length * 120}ms` : "0ms" }}
+        className={`relative z-10 flex min-h-[215px] flex-col justify-between rounded-2xl border border-ink-900 bg-ink-900 p-6 text-white transition-all duration-500 ease-out motion-reduce:transition-none ${
+          visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+        }`}
+      >
         <div>
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand text-sm font-extrabold text-ink-900">
             ✓

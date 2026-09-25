@@ -23,7 +23,7 @@ export default function Home() {
               Навигатор в маркетинге для владельцев малого и среднего бизнеса
             </span>
             <h1 className="my-5 max-w-[650px] font-display text-3xl leading-[1.15] tracking-tight text-white sm:text-4xl md:text-5xl md:leading-[1.12]">
-              Из хаоса в маркетинге — в понятный маршрут к клиентам
+              Хватит блуждать в маркетинге — вот ваш маршрут к клиентам
             </h1>
             <p className="mb-7 max-w-[570px] text-base text-white/65 sm:text-lg">
               Отвечаете на 7 вопросов о своём бизнесе — получаете подписку на пошаговый план

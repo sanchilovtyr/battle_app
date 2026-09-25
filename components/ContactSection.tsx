@@ -57,7 +57,7 @@ export default function ContactSection() {
       />
       <button
         type="submit"
-        className="rounded-full bg-ink-900 px-5 py-3.5 text-sm font-medium text-white transition-colors hover:bg-ink-800"
+        className="rounded-full bg-ink-900 px-5 py-3.5 text-sm font-medium text-white transition-transform hover:-translate-y-0.5 hover:bg-ink-800"
       >
         Отправить
       </button>

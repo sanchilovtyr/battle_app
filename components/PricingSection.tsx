@@ -74,12 +74,12 @@ export default function PricingSection() {
             }`}
           >
             {plan.highlighted && (
-              <span className="mb-3 inline-block w-fit rounded-full bg-brand px-3 py-1 text-xs font-mono text-ink-900">
+              <span className="mb-3 inline-block w-fit rounded-full bg-brand px-3 py-1 text-xs font-bold text-ink-900">
                 Популярный выбор
               </span>
             )}
             {plan.free && (
-              <span className="mb-3 inline-block w-fit rounded-full bg-violet-soft px-3 py-1 text-xs font-mono text-violet">
+              <span className="mb-3 inline-block w-fit rounded-full bg-violet-soft px-3 py-1 text-xs font-bold text-violet">
                 Для знакомства
               </span>
             )}
@@ -104,7 +104,7 @@ export default function PricingSection() {
             <button
               onClick={() => openConfirm(plan)}
               disabled={paying}
-              className={`w-full rounded-full px-5 py-3 text-sm font-medium transition-colors disabled:opacity-60 ${
+              className={`w-full rounded-full px-5 py-3 text-sm font-medium transition hover:-translate-y-0.5 disabled:opacity-60 disabled:hover:translate-y-0 ${
                 plan.highlighted
                   ? "bg-brand text-ink-900 hover:bg-brand/90"
                   : plan.free
@@ -115,7 +115,7 @@ export default function PricingSection() {
               {paying ? "Переходим к оплате…" : plan.free ? "Попробовать бесплатно" : "Оформить подписку"}
             </button>
             {notice?.planId === plan.id && (
-              <p className="mt-3 text-xs font-mono text-violet">{notice.text}</p>
+              <p className="mt-3 text-xs text-violet">{notice.text}</p>
             )}
           </div>
         ))}

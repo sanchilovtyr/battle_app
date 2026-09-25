@@ -258,7 +258,7 @@ function AuthGate({ onDone }: { onDone: () => void }) {
         <button
           type="submit"
           disabled={submitting || (mode === "register" && (!agreedOffer || !agreedPd))}
-          className="rounded-xl bg-ink-900 px-5 py-4 text-sm font-medium text-white transition-colors hover:bg-ink-800 disabled:opacity-50"
+          className="rounded-xl bg-brand px-5 py-4 text-sm font-extrabold text-ink-900 transition hover:-translate-y-0.5 hover:bg-brand/90 disabled:opacity-50 disabled:hover:translate-y-0"
         >
           {submitting
             ? "Подождите…"

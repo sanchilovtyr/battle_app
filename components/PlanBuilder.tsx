@@ -4,30 +4,19 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession, signIn, signOut } from "next-auth/react";
 import VectorSection from "@/components/VectorSection";
+import PlanColumn, { PHASE_META } from "@/components/PlanColumn";
+import PlanAnalytics, { LockedAnalytics } from "@/components/PlanAnalytics";
 import { QUESTIONS } from "@/lib/questions";
-import { Answers, GeneratedPlan, PlanEntry, Phase } from "@/lib/types";
+import { Answers, GeneratedPlan } from "@/lib/types";
 import { getPlan, PlanId } from "@/lib/plans";
 import { computeEffectivePlanId } from "@/lib/subscriptionUtils";
 import { getBusinesses, addBusiness, clearAccount, Business } from "@/lib/account";
+import { ChecklistState, getChecklist, toggleStep } from "@/lib/checklist";
+import { FunnelSnapshot, getSnapshots } from "@/lib/funnel";
 
 type RawAnswers = Record<string, string>;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const PHASE_META: Record<Phase, { title: string; note: string }> = {
-  foundation: {
-    title: "Этап 1. Фундамент",
-    note: "Без этого платный трафик и продвижение будут работать вхолостую",
-  },
-  traffic: {
-    title: "Этап 2. Привлечение трафика",
-    note: "Каналы, подобранные под вашу нишу, бюджет и цель",
-  },
-  retention: {
-    title: "Этап 3. Удержание и повторные продажи",
-    note: "Дешевле удержать клиента, чем привлечь нового",
-  },
-};
 
 const BUSINESS_TYPE_LABELS: Record<string, string> = {
   retail: "Розничная торговля",
@@ -49,53 +38,6 @@ function toAnswers(raw: RawAnswers): Answers {
     geo: raw.geo as Answers["geo"],
     experience: raw.experience as Answers["experience"],
   };
-}
-
-function PlanColumn({ phase, entries }: { phase: Phase; entries: PlanEntry[] }) {
-  const meta = PHASE_META[phase];
-  if (entries.length === 0) return null;
-  return (
-    <div className="mb-10">
-      <div className="flex items-baseline justify-between border-b border-line pb-2 mb-4">
-        <h3 className="font-display text-lg md:text-xl text-ink-900">{meta.title}</h3>
-        <span className="hidden md:block text-sm text-muted">{meta.note}</span>
-      </div>
-      <p className="md:hidden text-sm text-muted mb-4">{meta.note}</p>
-      <div className="space-y-4">
-        {entries.map((entry, i) => (
-          <details
-            key={entry.module.id}
-            className="group rounded-xl border border-line bg-white open:bg-white transition-colors"
-            open={i === 0}
-          >
-            <summary className="flex cursor-pointer items-start gap-4 list-none p-4 md:p-5">
-              <span className="waypoint-num shrink-0 mt-1 flex h-7 w-7 items-center justify-center rounded-full bg-violet text-paper">
-                {i + 1}
-              </span>
-              <span className="flex-1">
-                <span className="block font-display text-base md:text-lg text-ink-900">
-                  {entry.module.title}
-                </span>
-                <span className="block text-sm text-muted mt-1">{entry.module.timeToResult}</span>
-              </span>
-              <span className="mt-1 text-ink-900/30 transition-transform group-open:rotate-180">⌄</span>
-            </summary>
-            <div className="px-4 md:px-5 pb-5 pl-[3.25rem] md:pl-[3.75rem]">
-              <p className="text-sm md:text-base text-ink-900/80 mb-3">{entry.reason}</p>
-              <ul className="space-y-2">
-                {entry.module.steps.map((step, si) => (
-                  <li key={si} className="flex gap-2 text-sm md:text-base text-ink-900/90">
-                    <span className="text-brand font-mono">→</span>
-                    <span>{step}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </details>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function LockedVectorCard() {
@@ -258,7 +200,7 @@ function AuthGate({ onDone }: { onDone: () => void }) {
         <button
           type="submit"
           disabled={submitting || (mode === "register" && (!agreedOffer || !agreedPd))}
-          className="rounded-xl bg-ink-900 px-5 py-4 text-sm font-medium text-white transition-colors hover:bg-ink-800 disabled:opacity-50"
+          className="rounded-xl bg-brand px-5 py-4 text-sm font-extrabold text-ink-900 transition hover:-translate-y-0.5 hover:bg-brand/90 disabled:opacity-50 disabled:hover:translate-y-0"
         >
           {submitting
             ? "Подождите…"
@@ -384,6 +326,9 @@ export default function PlanBuilder() {
   const [stepIndex, setStepIndex] = useState(0);
   const [raw, setRaw] = useState<RawAnswers>({});
   const [plan, setPlan] = useState<GeneratedPlan | null>(null);
+  const [planBusinessId, setPlanBusinessId] = useState<string | null>(null);
+  const [checklist, setChecklist] = useState<ChecklistState>({});
+  const [snapshots, setSnapshots] = useState<FunnelSnapshot[]>([]);
   const [pdfNotice, setPdfNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -409,6 +354,9 @@ export default function PlanBuilder() {
     setRaw({});
     setStepIndex(0);
     setPlan(null);
+    setPlanBusinessId(null);
+    setChecklist({});
+    setSnapshots([]);
     signOut({ redirect: false });
   };
 
@@ -443,8 +391,12 @@ export default function PlanBuilder() {
         const saved = addBusiness({
           name: businessName || "Мой бизнес",
           businessType: BUSINESS_TYPE_LABELS[next.businessType] ?? next.businessType,
+          plan: data.plan as GeneratedPlan,
         });
         setBusinesses((prev) => [...prev, saved]);
+        setPlanBusinessId(saved.id);
+        setChecklist(getChecklist(saved.id));
+        setSnapshots(getSnapshots(saved.id));
       } catch {
         setGenerateError("Не удалось связаться с сервером, попробуйте ещё раз.");
       } finally {
@@ -463,8 +415,16 @@ export default function PlanBuilder() {
     setRaw({});
     setStepIndex(0);
     setPlan(null);
+    setPlanBusinessId(null);
+    setChecklist({});
+    setSnapshots([]);
     setBusinessName(null);
     setPdfNotice(null);
+  };
+
+  const handleToggleStep = (moduleId: string, stepIndex: number, stepsLength: number) => {
+    if (!planBusinessId) return;
+    setChecklist(toggleStep(planBusinessId, moduleId, stepIndex, stepsLength));
   };
 
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -621,12 +581,43 @@ export default function PlanBuilder() {
               <p className="font-display text-lg md:text-xl text-ink-900">{plan.summary}</p>
             </div>
 
-            <PlanColumn phase="foundation" entries={plan.foundation} />
-            <PlanColumn phase="traffic" entries={plan.traffic} />
-            {planMeta.fullPlanAccess && <PlanColumn phase="retention" entries={plan.retention} />}
+            <PlanColumn
+              phase="foundation"
+              entries={plan.foundation}
+              checklist={planMeta.checklistAccess ? checklist : undefined}
+              onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
+            />
+            <PlanColumn
+              phase="traffic"
+              entries={plan.traffic}
+              checklist={planMeta.checklistAccess ? checklist : undefined}
+              onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
+            />
+            {planMeta.fullPlanAccess && (
+              <PlanColumn
+                phase="retention"
+                entries={plan.retention}
+                checklist={planMeta.checklistAccess ? checklist : undefined}
+                onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
+              />
+            )}
           </div>
 
           {!planMeta.fullPlanAccess && <LockedPhaseCard />}
+
+          <div className="print:hidden">
+            {planMeta.checklistAccess && planBusinessId ? (
+              <PlanAnalytics
+                businessId={planBusinessId}
+                plan={plan}
+                checklist={checklist}
+                snapshots={snapshots}
+                onSnapshotsChange={setSnapshots}
+              />
+            ) : (
+              <LockedAnalytics />
+            )}
+          </div>
 
           {planMeta.audienceVectorAccess ? (
             <VectorSection />

@@ -7,12 +7,30 @@ export default function ContactSection() {
   const [contact, setContact] = useState("");
   const [message, setMessage] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // В прототипе заявка нигде не сохраняется — нужен бэкенд-эндпоинт,
-    // который отправит её на почту/в Telegram и запишет в базу (см. README).
-    setSubmitted(true);
+    setError(null);
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, contact, message }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Не удалось отправить заявку, попробуйте ещё раз.");
+        return;
+      }
+      setSubmitted(true);
+    } catch {
+      setError("Не удалось связаться с сервером, попробуйте ещё раз.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (submitted) {
@@ -55,11 +73,13 @@ export default function ContactSection() {
         rows={4}
         className="w-full resize-none rounded-xl border border-line bg-white p-3.5 text-ink-900 outline-none transition-colors focus:border-violet"
       />
+      {error && <p className="text-sm text-red-600">{error}</p>}
       <button
         type="submit"
-        className="rounded-full bg-ink-900 px-5 py-3.5 text-sm font-medium text-white transition-colors hover:bg-ink-800"
+        disabled={submitting}
+        className="rounded-full bg-ink-900 px-5 py-3.5 text-sm font-medium text-white transition-transform hover:-translate-y-0.5 hover:bg-ink-800 disabled:opacity-50 disabled:hover:translate-y-0"
       >
-        Отправить
+        {submitting ? "Отправляем…" : "Отправить"}
       </button>
     </form>
   );

@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { EXECUTOR } from "./offer";
 
 let cachedTransporter: ReturnType<typeof nodemailer.createTransport> | null = null;
 
@@ -31,6 +32,7 @@ export async function sendMail(params: {
   to: string;
   subject: string;
   html: string;
+  replyTo?: string;
   attachments?: { filename: string; content: Buffer; contentType?: string }[];
 }) {
   const transporter = getTransporter();
@@ -41,6 +43,7 @@ export async function sendMail(params: {
     to: params.to,
     subject: params.subject,
     html: params.html,
+    replyTo: params.replyTo,
     attachments: params.attachments,
   });
 }
@@ -122,5 +125,35 @@ export async function sendAdminNewUserNotification(userEmail: string) {
     to: notifyTo,
     subject: `Новый пользователь: ${userEmail}`,
     html,
+  });
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** Заявка с формы обратной связи на лендинге — уходит на общую почту проекта */
+export async function sendContactFormEmail(params: { name: string; contact: string; message: string }) {
+  const html = `
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; color: #111525;">
+      <h2 style="margin-bottom: 8px;">Новое сообщение с формы обратной связи</h2>
+      <p><b>Имя:</b> ${escapeHtml(params.name)}</p>
+      <p><b>Контакт для ответа:</b> ${escapeHtml(params.contact)}</p>
+      <p><b>Сообщение:</b></p>
+      <p style="white-space: pre-wrap;">${escapeHtml(params.message)}</p>
+    </div>
+  `;
+
+  await sendMail({
+    to: EXECUTOR.email,
+    subject: `Заявка с сайта от ${params.name}`,
+    html,
+    replyTo: EMAIL_RE.test(params.contact.trim()) ? params.contact.trim() : undefined,
   });
 }

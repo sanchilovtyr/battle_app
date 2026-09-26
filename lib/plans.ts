@@ -17,6 +17,8 @@ export interface PricingPlan {
   audienceVectorAccess: boolean;
   /** Доступен ли экспорт плана в PDF (скачивание и отправка на почту) */
   pdfExportAccess: boolean;
+  /** Доступны ли чек-листы выполнения и аналитика "где теряются клиенты" */
+  checklistAccess: boolean;
 }
 
 export const PLANS: PricingPlan[] = [
@@ -36,6 +38,7 @@ export const PLANS: PricingPlan[] = [
     fullPlanAccess: false,
     audienceVectorAccess: false,
     pdfExportAccess: false,
+    checklistAccess: false,
   },
   {
     id: "start",
@@ -53,6 +56,7 @@ export const PLANS: PricingPlan[] = [
     fullPlanAccess: true,
     audienceVectorAccess: false,
     pdfExportAccess: false,
+    checklistAccess: false,
   },
   {
     id: "business",
@@ -64,6 +68,7 @@ export const PLANS: PricingPlan[] = [
       "До 3 бизнесов в одном аккаунте",
       "Всё из тарифа «Старт»",
       "Чек-листы с отметками о выполнении",
+      "Аналитика: в каком моменте бизнес теряет клиентов",
       "Определение вектора аудитории и рекомендации по рекламе",
       "Обновление плана каждую неделю",
       "Техническая поддержка",
@@ -73,6 +78,7 @@ export const PLANS: PricingPlan[] = [
     fullPlanAccess: true,
     audienceVectorAccess: true,
     pdfExportAccess: false,
+    checklistAccess: true,
   },
   {
     id: "agency",
@@ -84,6 +90,7 @@ export const PLANS: PricingPlan[] = [
       "До 5 бизнесов в одном аккаунте",
       "Всё из тарифа «Старт»",
       "Чек-листы с отметками о выполнении",
+      "Аналитика: в каком моменте бизнес теряет клиентов",
       "Определение вектора аудитории и рекомендации по рекламе",
       "Экспорт плана в PDF",
       "Обновление плана каждую неделю",
@@ -93,6 +100,7 @@ export const PLANS: PricingPlan[] = [
     fullPlanAccess: true,
     audienceVectorAccess: true,
     pdfExportAccess: true,
+    checklistAccess: true,
   },
 ];
 

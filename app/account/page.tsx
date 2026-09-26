@@ -362,12 +362,22 @@ export default function AccountPage() {
                     {b.businessType} · план от {formatDate(b.createdAt)}
                   </p>
                 </div>
-                <button
-                  onClick={() => handleDeleteBusiness(b.id)}
-                  className="text-sm text-muted underline underline-offset-4 hover:text-ink-900"
-                >
-                  Удалить
-                </button>
+                <div className="flex items-center gap-4">
+                  {b.plan && (
+                    <Link
+                      href={`/business/${b.id}`}
+                      className="text-sm font-medium text-violet underline underline-offset-4 hover:text-ink-900"
+                    >
+                      Открыть план
+                    </Link>
+                  )}
+                  <button
+                    onClick={() => handleDeleteBusiness(b.id)}
+                    className="text-sm text-muted underline underline-offset-4 hover:text-ink-900"
+                  >
+                    Удалить
+                  </button>
+                </div>
               </div>
             ))}
           </div>

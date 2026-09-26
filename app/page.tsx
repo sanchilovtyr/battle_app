@@ -23,7 +23,7 @@ export default function Home() {
               Навигатор в маркетинге для владельцев малого и среднего бизнеса
             </span>
             <h1 className="my-5 max-w-[650px] font-display text-3xl leading-[1.15] tracking-tight text-white sm:text-4xl md:text-5xl md:leading-[1.12]">
-              Из хаоса в маркетинге — в понятный маршрут к клиентам
+              Хватит блуждать в маркетинге — вот ваш маршрут к клиентам
             </h1>
             <p className="mb-7 max-w-[570px] text-base text-white/65 sm:text-lg">
               Отвечаете на 7 вопросов о своём бизнесе — получаете подписку на пошаговый план
@@ -47,14 +47,14 @@ export default function Home() {
       </section>
 
       {/* ABOUT */}
-      <section className="bg-white pt-16 pb-8 md:py-24">
+      <section id="about" className="scroll-mt-[68px] bg-white pt-16 pb-8 sm:scroll-mt-[76px] md:py-24">
         <div className="mx-auto max-w-6xl px-5 md:px-8">
           <AboutSection />
         </div>
       </section>
 
       {/* JOURNEY */}
-      <section className="bg-gradient-to-b from-white to-soft pt-8 pb-16 md:py-24">
+      <section id="how-it-works" className="scroll-mt-[68px] bg-gradient-to-b from-white to-soft pt-8 pb-16 sm:scroll-mt-[76px] md:py-24">
         <div className="mx-auto max-w-6xl px-5 md:px-8">
           <div className="mx-auto mb-12 max-w-xl text-center">
             <h2 className="mb-3 font-display text-3xl tracking-tight text-ink-900 md:text-4xl">
@@ -70,14 +70,14 @@ export default function Home() {
       </section>
 
       {/* WIZARD */}
-      <section className="border-y border-line bg-white" id="wizard-section">
+      <section className="scroll-mt-[68px] border-y border-line bg-white sm:scroll-mt-[76px]" id="wizard-section">
         <div className="mx-auto max-w-4xl px-5 py-16 md:px-8 md:py-24">
           <PlanBuilder />
         </div>
       </section>
 
       {/* CASES */}
-      <section className="bg-ink-900 py-16 text-white md:py-24">
+      <section id="cases" className="scroll-mt-[68px] bg-ink-900 py-16 text-white sm:scroll-mt-[76px] md:py-24">
         <div className="mx-auto max-w-6xl px-5 md:px-8">
           <div className="mx-auto mb-12 max-w-xl text-center">
             <h2 className="mb-3 font-display text-3xl tracking-tight text-white md:text-4xl">
@@ -92,7 +92,7 @@ export default function Home() {
       </section>
 
       {/* PRICING */}
-      <section id="pricing" className="bg-gradient-to-b from-white to-[#FBFBFD] py-16 md:py-24">
+      <section id="pricing" className="scroll-mt-[68px] bg-gradient-to-b from-white to-[#FBFBFD] py-16 sm:scroll-mt-[76px] md:py-24">
         <div className="mx-auto max-w-6xl px-5 md:px-8">
           <div className="mx-auto mb-10 max-w-xl text-center">
             <h2 className="mb-3 font-display text-3xl tracking-tight text-ink-900 md:text-4xl">
@@ -105,13 +105,14 @@ export default function Home() {
           </div>
           <PricingSection />
           <p className="mt-6 text-center text-xs text-muted">
-            Оплата российской картой или через СБП · отмена подписки в любой момент
+            Оплата картой российского банка или через СБП. Отменить подписку можно в любой
+            момент.
           </p>
         </div>
       </section>
 
       {/* CONTACT */}
-      <section className="border-t border-line bg-soft py-16 md:py-24">
+      <section id="contact" className="scroll-mt-[68px] border-t border-line bg-soft py-16 sm:scroll-mt-[76px] md:py-24">
         <div className="mx-auto max-w-6xl px-5 md:px-8">
           <div className="mx-auto mb-10 max-w-xl text-center">
             <h2 className="mb-3 font-display text-3xl tracking-tight text-ink-900 md:text-4xl">

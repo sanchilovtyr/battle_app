@@ -42,7 +42,7 @@ export default function SiteHeader({ ctaHref = "/#wizard" }: { ctaHref?: string 
           <Link
             href="/account"
             aria-label="Личный кабинет"
-            className="relative flex h-9 w-9 items-center justify-center rounded-full border border-white/25 text-[11px] font-bold text-white transition-colors hover:bg-white/10 sm:hidden"
+            className="relative flex h-9 w-9 items-center justify-center rounded-full border border-white/25 text-[11px] font-bold text-white transition-transform hover:-translate-y-0.5 hover:bg-white/10 sm:hidden"
           >
             ЛК
             {hasUnreadNews && (
@@ -51,7 +51,7 @@ export default function SiteHeader({ ctaHref = "/#wizard" }: { ctaHref?: string 
           </Link>
           <Link
             href="/account"
-            className="relative hidden text-sm font-medium text-white/75 hover:text-white sm:block"
+            className="relative hidden text-sm font-medium text-white/75 transition-transform hover:-translate-y-0.5 hover:text-white sm:block"
           >
             Личный кабинет
             {hasUnreadNews && (

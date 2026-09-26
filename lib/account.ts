@@ -3,6 +3,10 @@
 // app/api/me, app/api/payments/*). Перенос бизнесов в БД — следующий шаг,
 // см. README.
 
+import { GeneratedPlan } from "./types";
+import { clearChecklist } from "./checklist";
+import { clearFunnel } from "./funnel";
+
 const EMAIL_KEY = "promoplan_email";
 const PROFILE_KEY = "promoplan_profile";
 const SUBSCRIPTION_KEY = "promoplan_subscription";
@@ -13,6 +17,9 @@ export interface Business {
   name: string;
   businessType: string;
   createdAt: string;
+  // Сам сгенерированный план — чтобы его можно было открыть повторно в личном
+  // кабинете, а не только сразу после прохождения анкеты.
+  plan?: GeneratedPlan;
 }
 
 function safeGet(key: string): string | null {
@@ -72,4 +79,10 @@ export function addBusiness(entry: Omit<Business, "id" | "createdAt">): Business
 export function removeBusiness(id: string) {
   const next = getBusinesses().filter((b) => b.id !== id);
   safeSet(BUSINESSES_KEY, JSON.stringify(next));
+  clearChecklist(id);
+  clearFunnel(id);
+}
+
+export function getBusiness(id: string): Business | null {
+  return getBusinesses().find((b) => b.id === id) ?? null;
 }

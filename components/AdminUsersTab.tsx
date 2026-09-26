@@ -46,6 +46,26 @@ export default function AdminUsersTab({ onMessage }: { onMessage: (email: string
     setUsers((prev) => (prev ?? []).filter((u) => u.id !== id));
   };
 
+  const [changingId, setChangingId] = useState<string | null>(null);
+
+  const changePlan = async (id: string, planId: PlanId) => {
+    setChangingId(id);
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId }),
+      });
+      if (!res.ok) {
+        alert("Не удалось поменять тариф");
+        return;
+      }
+      setUsers((prev) => (prev ?? []).map((u) => (u.id === id ? { ...u, planId, status: "active" } : u)));
+    } finally {
+      setChangingId(null);
+    }
+  };
+
   const filtered = useMemo(
     () => (users ?? []).filter((u) => filter === "all" || u.planId === filter),
     [users, filter]
@@ -62,6 +82,10 @@ export default function AdminUsersTab({ onMessage }: { onMessage: (email: string
 
   return (
     <div>
+      <p className="mb-4 text-sm text-muted">
+        Тариф аккаунта можно менять здесь напрямую, без оплаты — например, чтобы зайти под своим
+        аккаунтом и проверить, как выглядит и работает каждый тариф.
+      </p>
       <div className="mb-5 flex flex-wrap gap-2">
         <button
           onClick={() => setFilter("all")}
@@ -101,7 +125,6 @@ export default function AdminUsersTab({ onMessage }: { onMessage: (email: string
           {/* Мобильная версия — карточки вместо таблицы */}
           <div className="space-y-3 md:hidden">
             {filtered.map((u) => {
-              const plan = PLANS.find((p) => p.id === u.planId);
               return (
                 <div key={u.id} className="rounded-2xl border border-line bg-white p-4">
                   <div className="mb-2 flex items-start justify-between gap-2">
@@ -120,9 +143,19 @@ export default function AdminUsersTab({ onMessage }: { onMessage: (email: string
                       {u.status === "active" ? "Активен" : "Отменён"}
                     </span>
                   </div>
-                  <p className="mb-3 text-sm text-muted">
-                    {plan?.name ?? u.planId} · {formatDate(u.createdAt)}
-                  </p>
+                  <p className="mb-2 text-sm text-muted">{formatDate(u.createdAt)}</p>
+                  <select
+                    value={u.planId}
+                    disabled={changingId === u.id}
+                    onChange={(e) => changePlan(u.id, e.target.value as PlanId)}
+                    className="mb-3 w-full rounded-xl border border-line bg-white p-2.5 text-sm text-ink-900 outline-none focus:border-violet disabled:opacity-50"
+                  >
+                    {PLANS.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
                   <div className="flex gap-2">
                     <button
                       onClick={() => onMessage(u.email)}
@@ -156,7 +189,6 @@ export default function AdminUsersTab({ onMessage }: { onMessage: (email: string
               </thead>
               <tbody>
                 {filtered.map((u) => {
-                  const plan = PLANS.find((p) => p.id === u.planId);
                   return (
                     <tr key={u.id} className="border-b border-line last:border-0">
                       <td className="p-4">
@@ -164,7 +196,20 @@ export default function AdminUsersTab({ onMessage }: { onMessage: (email: string
                         <div className="text-muted">{u.email}</div>
                         {u.phone && <div className="text-muted">{u.phone}</div>}
                       </td>
-                      <td className="p-4 text-ink-900">{plan?.name ?? u.planId}</td>
+                      <td className="p-4">
+                        <select
+                          value={u.planId}
+                          disabled={changingId === u.id}
+                          onChange={(e) => changePlan(u.id, e.target.value as PlanId)}
+                          className="rounded-xl border border-line bg-white p-2 text-sm text-ink-900 outline-none focus:border-violet disabled:opacity-50"
+                        >
+                          {PLANS.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
                       <td className="p-4">
                         <span
                           className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${

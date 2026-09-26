@@ -208,6 +208,14 @@ function AuthGate({ onDone }: { onDone: () => void }) {
             ? "Зарегистрироваться и продолжить"
             : "Войти"}
         </button>
+        {mode === "login" && (
+          <Link
+            href="/forgot-password"
+            className="text-sm text-muted underline underline-offset-4 hover:text-ink-900"
+          >
+            Забыли пароль?
+          </Link>
+        )}
         {mode === "register" && (
           <div className="grid gap-2">
             <label className="flex items-start gap-2 text-xs text-muted">

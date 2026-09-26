@@ -18,10 +18,11 @@ model User {
   // всё, что новее этой даты, показывается как непрочитанное
   newsSeenAt   DateTime?
 
-  subscription    Subscription?
-  businesses      Business[]
-  supportMessages SupportMessage[]
-  payments        Payment[]
+  subscription        Subscription?
+  businesses          Business[]
+  supportMessages     SupportMessage[]
+  payments            Payment[]
+  passwordResetTokens PasswordResetToken[]
 }
 
 model Subscription {
@@ -91,6 +92,19 @@ model NewsPost {
   title     String
   body      String
   createdAt DateTime @default(now())
+}
+
+/// Ссылки для восстановления пароля по email. Хранится только хеш токена
+/// (сам токен есть лишь в письме пользователя) — так утечка базы не даёт
+/// возможности сбросить чей-то пароль
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 }
 
 /// Платежи ЮKassa — журнал для сверки и защиты от повторной обработки вебхука

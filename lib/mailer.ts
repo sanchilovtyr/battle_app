@@ -77,6 +77,55 @@ export async function sendRegistrationEmail(email: string) {
   });
 }
 
+export async function sendPasswordResetEmail(email: string, resetUrl: string) {
+  const html = `
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; color: #111525;">
+      <h2 style="margin-bottom: 8px;">Восстановление пароля</h2>
+      <p>Здравствуйте!</p>
+      <p>
+        Мы получили запрос на восстановление пароля для аккаунта <b>${email}</b>
+        на сервисе «Ключевое слово».
+      </p>
+      <p>
+        <a href="${resetUrl}" style="color: #7658F6;">Придумать новый пароль →</a>
+      </p>
+      <p style="color: #70758A; font-size: 13px; margin-top: 24px;">
+        Ссылка действительна 1 час. Если это были не вы — просто проигнорируйте
+        письмо, пароль останется прежним.
+      </p>
+    </div>
+  `;
+
+  await sendMail({
+    to: email,
+    subject: "Восстановление пароля — «Ключевое слово»",
+    html,
+  });
+}
+
+export async function sendPasswordChangedEmail(email: string) {
+  const html = `
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; color: #111525;">
+      <h2 style="margin-bottom: 8px;">Пароль изменён</h2>
+      <p>Здравствуйте!</p>
+      <p>
+        Пароль для аккаунта <b>${email}</b> на сервисе «Ключевое слово» только
+        что был изменён.
+      </p>
+      <p style="color: #70758A; font-size: 13px; margin-top: 24px;">
+        Если это были не вы — напишите нам на ${EXECUTOR.email}, чтобы мы могли
+        разобраться.
+      </p>
+    </div>
+  `;
+
+  await sendMail({
+    to: email,
+    subject: "Пароль изменён — «Ключевое слово»",
+    html,
+  });
+}
+
 export async function sendPlanPdfEmail(email: string, businessName: string, pdfBytes: Uint8Array) {
   const siteUrl = process.env.NEXTAUTH_URL || "";
 

@@ -23,6 +23,7 @@ model User {
   supportMessages     SupportMessage[]
   payments            Payment[]
   passwordResetTokens PasswordResetToken[]
+  metrikaConnections  MetrikaConnection[]
 }
 
 model Subscription {
@@ -105,6 +106,30 @@ model PasswordResetToken {
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())
+}
+
+/// Подключение бизнеса пользователя к его собственному счётчику Яндекс
+/// Метрики — чтобы часть показателей воронки (обращения, а если настроены
+/// цели — заявки и продажи) можно было подтягивать автоматически, а не
+/// вводить руками каждый раз. businessId — это id бизнеса из localStorage
+/// (сами бизнесы пока не переехали в базу, см. README), поэтому здесь это
+/// просто строка, а не внешний ключ. Токены хранятся в зашифрованном виде
+/// (см. lib/secretBox.ts)
+model MetrikaConnection {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessId   String
+  accessToken  String
+  refreshToken String?
+  counterId    String?
+  counterName  String?
+  leadsGoalId  String?
+  salesGoalId  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, businessId])
 }
 
 /// Платежи ЮKassa — журнал для сверки и защиты от повторной обработки вебхука

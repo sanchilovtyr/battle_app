@@ -4,6 +4,7 @@ import { useState } from "react";
 import { GeneratedPlan } from "@/lib/types";
 import { ChecklistState, phaseProgress, unfinishedSteps } from "@/lib/checklist";
 import { FunnelSnapshot, addSnapshot, removeSnapshot } from "@/lib/funnel";
+import MetrikaConnect from "@/components/MetrikaConnect";
 
 const MONTHS = [
   "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
@@ -109,6 +110,16 @@ export default function PlanAnalytics({
 
   const handleRemove = (id: string) => {
     onSnapshotsChange(removeSnapshot(businessId, id));
+  };
+
+  const handleAutofill = (data: { visitors: number; leads: number | null; sales: number | null }) => {
+    setForm((f) => ({
+      ...f,
+      visitors: String(data.visitors),
+      leads: data.leads !== null ? String(data.leads) : f.leads,
+      sales: data.sales !== null ? String(data.sales) : f.sales,
+    }));
+    setShowForm(true);
   };
 
   // Куда указывает найденное узкое место с точки зрения плана.
@@ -228,6 +239,8 @@ export default function PlanAnalytics({
           )}
         </div>
       )}
+
+      <MetrikaConnect businessId={businessId} onAutofill={handleAutofill} />
 
       {showForm ? (
         <form onSubmit={submit} className="rounded-xl border border-line bg-soft p-4">

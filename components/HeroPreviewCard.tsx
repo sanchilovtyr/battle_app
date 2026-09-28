@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+
 const STOPS = [
   {
     phase: "Фундамент",
@@ -13,7 +17,14 @@ const STOPS = [
   },
 ];
 
+const FINAL_INDEX = STOPS.length;
+
 export default function HeroPreviewCard() {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+
+  const activate = (i: number) => setActiveIndex(i);
+  const deactivate = (i: number) => setActiveIndex((cur) => (cur === i ? null : cur));
+
   return (
     <a
       href="#wizard"
@@ -28,26 +39,50 @@ export default function HeroPreviewCard() {
 
       <div className="relative mt-5 pl-[7px]">
         <div className="absolute bottom-3 left-[7px] top-3 w-px border-l-2 border-dashed border-line" />
-        {STOPS.map((s, i) => (
-          <div key={s.phase} className="relative mb-5 flex gap-4 pl-6 last:mb-0">
-            <span
-              className={`absolute left-0 top-0.5 h-3.5 w-3.5 -translate-x-1/2 rounded-full border-2 ${
-                i === 0
-                  ? "border-violet bg-violet"
-                  : i === 1
-                  ? "border-violet bg-white"
-                  : "border-line bg-white"
-              }`}
-            />
-            <div>
-              <div className="text-[13px] font-extrabold text-ink-900">{s.phase}</div>
-              <div className="text-[13px] text-muted">{s.item}</div>
+        {STOPS.map((s, i) => {
+          const active = activeIndex === i;
+          return (
+            <div
+              key={s.phase}
+              onMouseEnter={() => activate(i)}
+              onMouseLeave={() => deactivate(i)}
+              className="relative mb-5 flex cursor-default gap-4 pl-6 last:mb-0"
+            >
+              <span
+                className={`absolute left-0 top-0.5 h-3.5 w-3.5 -translate-x-1/2 rounded-full border-2 transition-all duration-200 ${
+                  active ? "scale-110 border-violet bg-violet" : "border-line bg-white"
+                }`}
+              />
+              <div>
+                <div
+                  className={`text-[13px] font-extrabold transition-colors duration-200 ${
+                    active ? "text-violet" : "text-ink-900"
+                  }`}
+                >
+                  {s.phase}
+                </div>
+                <div className="text-[13px] text-muted">{s.item}</div>
+              </div>
             </div>
+          );
+        })}
+        <div
+          onMouseEnter={() => activate(FINAL_INDEX)}
+          onMouseLeave={() => deactivate(FINAL_INDEX)}
+          className="relative flex cursor-default items-center gap-4 pl-6"
+        >
+          <span
+            className={`absolute left-0 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 transition-all duration-200 ${
+              activeIndex === FINAL_INDEX ? "scale-110 border-brand bg-brand" : "border-line bg-white"
+            }`}
+          />
+          <div
+            className={`text-[13px] font-extrabold transition-colors duration-200 ${
+              activeIndex === FINAL_INDEX ? "text-ink-900" : "text-muted"
+            }`}
+          >
+            Больше клиентов
           </div>
-        ))}
-        <div className="relative flex items-center gap-4 pl-6">
-          <span className="absolute left-0 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand" />
-          <div className="text-[13px] font-extrabold text-ink-900">Больше клиентов</div>
         </div>
       </div>
 

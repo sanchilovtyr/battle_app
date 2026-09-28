@@ -52,6 +52,9 @@ export default function Home() {
               <span className="before:mr-1.5 before:text-brand before:content-['✦']">
                 Работает с Яндекс.Метрикой
               </span>
+              <span className="before:mr-1.5 before:text-brand before:content-['✦']">
+                Маркетолог не нужен
+              </span>
             </div>
           </div>
           <HeroPreviewCard />

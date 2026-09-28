@@ -100,32 +100,33 @@ export default function ComparisonSection() {
         </table>
       </div>
 
-      {/* Мобильный — карточки, по одной на вариант, со свайпом */}
+      {/* Мобильный — карточки на весь экран, по одной на вариант, со свайпом */}
       <div className="md:hidden">
-        <div className="scrollbar-hide -mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth px-5 pb-2">
+        <div className="scrollbar-hide -mx-5 flex snap-x snap-mandatory overflow-x-auto scroll-smooth pb-2">
           {OPTIONS.map((o) => (
-            <article
-              key={o.key}
-              className={`w-[84%] shrink-0 snap-start rounded-2xl border p-5 ${
-                o.highlight ? "border-violet bg-violet-soft" : "border-line bg-white"
-              }`}
-            >
-              <h3
-                className={`mb-4 inline-block rounded-full px-3 py-1 font-display text-base ${
-                  o.highlight ? "bg-ink-900 text-white" : "text-ink-900"
+            <div key={o.key} className="w-full shrink-0 snap-start px-5">
+              <article
+                className={`rounded-2xl border p-5 ${
+                  o.highlight ? "border-violet bg-violet-soft" : "border-line bg-white"
                 }`}
               >
-                {o.name}
-              </h3>
-              <dl className="space-y-3">
-                {ROWS.map((row) => (
-                  <div key={row.label} className="border-t border-ink-900/10 pt-3 first:border-t-0 first:pt-0">
-                    <dt className="text-xs font-medium uppercase tracking-wide text-muted">{row.label}</dt>
-                    <dd className="mt-0.5 text-sm text-ink-900">{row[o.key]}</dd>
-                  </div>
-                ))}
-              </dl>
-            </article>
+                <h3
+                  className={`mb-4 inline-block rounded-full px-3 py-1 font-display text-base ${
+                    o.highlight ? "bg-ink-900 text-white" : "text-ink-900"
+                  }`}
+                >
+                  {o.name}
+                </h3>
+                <dl className="space-y-3">
+                  {ROWS.map((row) => (
+                    <div key={row.label} className="border-t border-ink-900/10 pt-3 first:border-t-0 first:pt-0">
+                      <dt className="text-xs font-medium uppercase tracking-wide text-muted">{row.label}</dt>
+                      <dd className="mt-0.5 text-sm text-ink-900">{row[o.key]}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </article>
+            </div>
           ))}
         </div>
         <p className="mt-3 text-center text-xs text-muted">← Смахните, чтобы сравнить остальные варианты →</p>

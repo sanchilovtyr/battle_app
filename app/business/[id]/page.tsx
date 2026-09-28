@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import SiteHeader from "@/components/SiteHeader";
-import VectorSection from "@/components/VectorSection";
+import { VectorQuiz, VectorResultCard, VectorLockedTeaser } from "@/components/VectorSection";
+import { VectorId } from "@/lib/vectors";
 import PlanColumn from "@/components/PlanColumn";
 import PlanAnalytics, { LockedAnalytics } from "@/components/PlanAnalytics";
-import { getBusiness, Business } from "@/lib/account";
+import { getBusiness, updateBusinessVector, Business } from "@/lib/account";
 import { getPlan, PlanId } from "@/lib/plans";
 import { computeEffectivePlanId } from "@/lib/subscriptionUtils";
 import { ChecklistState, getChecklist, toggleStep } from "@/lib/checklist";
@@ -28,6 +29,7 @@ export default function BusinessPage({ params }: { params: { id: string } }) {
   const [effectivePlanId, setEffectivePlanId] = useState<PlanId>("trial");
   const [checklist, setChecklist] = useState<ChecklistState>({});
   const [snapshots, setSnapshots] = useState<FunnelSnapshot[]>([]);
+  const [retakingVector, setRetakingVector] = useState(false);
 
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [sendingPdf, setSendingPdf] = useState(false);
@@ -55,6 +57,13 @@ export default function BusinessPage({ params }: { params: { id: string } }) {
   const handleToggleStep = (moduleId: string, stepIndex: number, stepsLength: number) => {
     if (!business) return;
     setChecklist(toggleStep(business.id, moduleId, stepIndex, stepsLength));
+  };
+
+  const handleVectorComplete = (vectorId: VectorId) => {
+    if (!business) return;
+    updateBusinessVector(business.id, vectorId);
+    setBusiness({ ...business, vectorId });
+    setRetakingVector(false);
   };
 
   const downloadPdf = async () => {
@@ -205,7 +214,33 @@ export default function BusinessPage({ params }: { params: { id: string } }) {
           <LockedAnalytics />
         )}
 
-        {planMeta.audienceVectorAccess && <VectorSection />}
+        {business.vectorId && !retakingVector && (
+          planMeta.audienceVectorAccess ? (
+            <VectorResultCard vectorId={business.vectorId} onRetake={() => setRetakingVector(true)} />
+          ) : (
+            <VectorLockedTeaser />
+          )
+        )}
+        {!business.vectorId && !retakingVector && (
+          <div className="print:hidden mt-10 rounded-2xl border border-dashed border-ink-900/20 bg-soft p-6 text-center">
+            <h3 className="font-display text-lg text-ink-900 mb-1.5">Вектор аудитории</h3>
+            <p className="mx-auto mb-4 max-w-md text-sm text-muted">
+              Этот бизнес создан до того, как вектор аудитории стали определять вместе с планом.
+              Пройдите короткий квиз, чтобы определить его и для этого бизнеса.
+            </p>
+            <button
+              onClick={() => setRetakingVector(true)}
+              className="rounded-full bg-ink-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-ink-800"
+            >
+              Определить вектор аудитории
+            </button>
+          </div>
+        )}
+        {retakingVector && (
+          <div className="print:hidden mt-10">
+            <VectorQuiz onComplete={handleVectorComplete} />
+          </div>
+        )}
 
         {planMeta.pdfExportAccess && (
           <div className="flex flex-col gap-3 rounded-xl border border-line bg-white p-5 sm:flex-row sm:items-center sm:justify-between">

@@ -4,6 +4,7 @@
 // см. README.
 
 import { GeneratedPlan } from "./types";
+import { VectorId } from "./vectors";
 import { clearChecklist } from "./checklist";
 import { clearFunnel } from "./funnel";
 
@@ -20,6 +21,13 @@ export interface Business {
   // Сам сгенерированный план — чтобы его можно было открыть повторно в личном
   // кабинете, а не только сразу после прохождения анкеты.
   plan?: GeneratedPlan;
+  // Вектор аудитории определяется один раз, перед вопросами о бизнесе (см.
+  // PlanBuilder), и хранится вместе с планом — чтобы не пропадал при
+  // обновлении страницы и не считался заново. Расшифровка (боль/мечта/
+  // рекомендации) показывается только на тарифах с audienceVectorAccess —
+  // сам факт прохождения хранится для всех, чтобы при апгрейде тарифа не
+  // нужно было проходить квиз заново.
+  vectorId?: VectorId;
 }
 
 function safeGet(key: string): string | null {
@@ -85,4 +93,11 @@ export function removeBusiness(id: string) {
 
 export function getBusiness(id: string): Business | null {
   return getBusinesses().find((b) => b.id === id) ?? null;
+}
+
+/** Обновляет вектор аудитории уже сохранённого бизнеса (кнопка "Пройти заново"). */
+export function updateBusinessVector(businessId: string, vectorId: VectorId) {
+  const next = getBusinesses().map((b) => (b.id === businessId ? { ...b, vectorId } : b));
+  safeSet(BUSINESSES_KEY, JSON.stringify(next));
+  return next;
 }

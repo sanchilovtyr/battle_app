@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession, signIn, signOut, getProviders } from "next-auth/react";
-import VectorSection from "@/components/VectorSection";
+import { VectorQuiz, VectorResultCard, VectorLockedTeaser } from "@/components/VectorSection";
+import { VectorId } from "@/lib/vectors";
 import PlanColumn, { PHASE_META } from "@/components/PlanColumn";
 import PlanAnalytics, { LockedAnalytics } from "@/components/PlanAnalytics";
 import { QUESTIONS } from "@/lib/questions";
 import { Answers, GeneratedPlan } from "@/lib/types";
 import { getPlan, PlanId } from "@/lib/plans";
 import { computeEffectivePlanId } from "@/lib/subscriptionUtils";
-import { getBusinesses, addBusiness, clearAccount, Business } from "@/lib/account";
+import { getBusinesses, addBusiness, updateBusinessVector, clearAccount, Business } from "@/lib/account";
 import { ChecklistState, getChecklist, toggleStep } from "@/lib/checklist";
 import { FunnelSnapshot, getSnapshots } from "@/lib/funnel";
 import { savePendingGuestPlan, loadPendingGuestPlan, clearPendingGuestPlan } from "@/lib/guestPlan";
@@ -40,28 +41,6 @@ function toAnswers(raw: RawAnswers): Answers {
     experience: raw.experience as Answers["experience"],
   };
 }
-
-function LockedVectorCard() {
-  return (
-    <div className="print:hidden mt-10 rounded-2xl border border-dashed border-ink-900/20 bg-soft p-6 text-center">
-      <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-ink-900 text-brand">
-        🔒
-      </div>
-      <h3 className="font-display text-lg text-ink-900 mb-1.5">Вектор аудитории</h3>
-      <p className="mx-auto mb-4 max-w-md text-sm text-muted">
-        На тарифах «Бизнес» и «Команда» доступен мини-квиз, который определяет психологический
-        профиль вашей аудитории и даёт рекомендации по тону и формату рекламы под него.
-      </p>
-      <a
-        href="#pricing"
-        className="inline-block rounded-full bg-ink-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-ink-800"
-      >
-        Посмотреть тарифы
-      </a>
-    </div>
-  );
-}
-
 
 function LockedPhaseCard() {
   const meta = PHASE_META.retention;
@@ -372,6 +351,8 @@ export default function PlanBuilder() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
 
   const [businessName, setBusinessName] = useState<string | null>(null);
+  const [vectorId, setVectorId] = useState<VectorId | null>(null);
+  const [retakingVector, setRetakingVector] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [raw, setRaw] = useState<RawAnswers>({});
   const [plan, setPlan] = useState<GeneratedPlan | null>(null);
@@ -400,6 +381,8 @@ export default function PlanBuilder() {
     setBusinesses([]);
     setEffectivePlanId("trial");
     setBusinessName(null);
+    setVectorId(null);
+    setRetakingVector(false);
     setRaw({});
     setStepIndex(0);
     setPlan(null);
@@ -419,15 +402,22 @@ export default function PlanBuilder() {
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
 
-  // Сохраняет сгенерированный план в личный кабинет (localStorage). Вызывается
-  // сразу после генерации, если пользователь уже вошёл, либо позже — сразу
-  // после регистрации (кнопкой или через Яндекс ID), если план сначала
-  // показали гостю (см. рендер ниже и восстановление после OAuth-редиректа).
-  const persistPlan = (planToSave: GeneratedPlan, name: string, businessTypeLabel: string) => {
+  // Сохраняет сгенерированный план (вместе с уже определённым вектором
+  // аудитории) в личный кабинет (localStorage). Вызывается сразу после
+  // генерации, если пользователь уже вошёл, либо позже — сразу после
+  // регистрации (кнопкой или через Яндекс ID), если план сначала показали
+  // гостю (см. рендер ниже и восстановление после OAuth-редиректа).
+  const persistPlan = (
+    planToSave: GeneratedPlan,
+    name: string,
+    businessTypeLabel: string,
+    vectorIdToSave?: VectorId
+  ) => {
     const saved = addBusiness({
       name: name || "Мой бизнес",
       businessType: businessTypeLabel,
       plan: planToSave,
+      vectorId: vectorIdToSave,
     });
     setBusinesses((prev) => [...prev, saved]);
     setPlanBusinessId(saved.id);
@@ -436,19 +426,44 @@ export default function PlanBuilder() {
     clearPendingGuestPlan();
   };
 
-  // Пока план показан гостю (ещё не зарегистрировался), держим его копию в
-  // localStorage — иначе вход через Яндекс ID (уводит с сайта и возвращает на
-  // новую загрузку страницы) стёр бы весь прогресс анкеты.
+  // Вектор определяется раньше плана, поэтому обновляет вектор и для уже
+  // сохранённого бизнеса (кнопка "Пройти заново"), и для того, что ещё не
+  // сохранён (тогда planBusinessId ещё нет — просто держим в состоянии).
+  const handleVectorComplete = (id: VectorId) => {
+    setVectorId(id);
+    setRetakingVector(false);
+    if (planBusinessId) {
+      updateBusinessVector(planBusinessId, id);
+    }
+  };
+
+  // Пока бизнес показан гостю (ещё не зарегистрировался), держим его прогресс
+  // в localStorage — иначе вход через Яндекс ID (уводит с сайта и возвращает
+  // на новую загрузку страницы) или случайное обновление страницы стёрли бы
+  // определённый вектор и/или готовый план.
   useEffect(() => {
-    if (plan && !email) {
+    if (!email && businessName && (vectorId || plan)) {
       savePendingGuestPlan({
-        businessName: businessName || "Мой бизнес",
-        businessType: BUSINESS_TYPE_LABELS[raw.businessType] ?? raw.businessType,
-        plan,
+        businessName,
+        vectorId: vectorId ?? undefined,
+        businessType: raw.businessType ? BUSINESS_TYPE_LABELS[raw.businessType] ?? raw.businessType : undefined,
+        plan: plan ?? undefined,
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plan, email]);
+  }, [businessName, vectorId, plan, email]);
+
+  // Гость обновил страницу, ещё не зарегистрировавшись — восстанавливаем имя
+  // бизнеса, определённый вектор и (если уже дошёл) сам план.
+  useEffect(() => {
+    if (status !== "unauthenticated" || businessName !== null) return;
+    const pending = loadPendingGuestPlan();
+    if (!pending) return;
+    setBusinessName(pending.businessName);
+    if (pending.vectorId) setVectorId(pending.vectorId);
+    if (pending.plan) setPlan(pending.plan);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
 
   // Если пользователь вошёл (в том числе вернувшись из OAuth Яндекса), а на
   // экране ещё нет плана — проверяем, не остался ли не сохранённый гостевой
@@ -456,10 +471,11 @@ export default function PlanBuilder() {
   useEffect(() => {
     if (status !== "authenticated" || plan) return;
     const pending = loadPendingGuestPlan();
-    if (!pending) return;
+    if (!pending || !pending.plan) return;
     setBusinessName(pending.businessName);
+    if (pending.vectorId) setVectorId(pending.vectorId);
     setPlan(pending.plan);
-    persistPlan(pending.plan, pending.businessName, pending.businessType);
+    persistPlan(pending.plan, pending.businessName, pending.businessType ?? "", pending.vectorId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, plan]);
 
@@ -488,7 +504,8 @@ export default function PlanBuilder() {
           persistPlan(
             data.plan as GeneratedPlan,
             businessName || "Мой бизнес",
-            BUSINESS_TYPE_LABELS[next.businessType] ?? next.businessType
+            BUSINESS_TYPE_LABELS[next.businessType] ?? next.businessType,
+            vectorId ?? undefined
           );
         }
       } catch {
@@ -513,6 +530,8 @@ export default function PlanBuilder() {
     setChecklist({});
     setSnapshots([]);
     setBusinessName(null);
+    setVectorId(null);
+    setRetakingVector(false);
     setPdfNotice(null);
   };
 
@@ -617,54 +636,60 @@ export default function PlanBuilder() {
             </p>
           )}
 
-          <div className="mb-6 flex items-center gap-3">
-            <span className="font-mono text-xs text-muted">
-              {String(stepIndex + 1).padStart(2, "0")} / {String(QUESTIONS.length).padStart(2, "0")}
-            </span>
-            <div className="h-1 flex-1 rounded-full bg-line">
-              <div
-                className="h-1 rounded-full bg-violet transition-all"
-                style={{ width: `${Math.max(progress, 6)}%` }}
-              />
-            </div>
-          </div>
+          {vectorId === null ? (
+            <VectorQuiz onComplete={handleVectorComplete} />
+          ) : (
+            <>
+              <div className="mb-6 flex items-center gap-3">
+                <span className="font-mono text-xs text-muted">
+                  {String(stepIndex + 1).padStart(2, "0")} / {String(QUESTIONS.length).padStart(2, "0")}
+                </span>
+                <div className="h-1 flex-1 rounded-full bg-line">
+                  <div
+                    className="h-1 rounded-full bg-violet transition-all"
+                    style={{ width: `${Math.max(progress, 6)}%` }}
+                  />
+                </div>
+              </div>
 
-          <h2 className="font-display text-2xl md:text-3xl text-ink-900 mb-1">{question.title}</h2>
-          {question.subtitle && <p className="text-muted mb-6">{question.subtitle}</p>}
-          {!question.subtitle && <div className="mb-6" />}
+              <h2 className="font-display text-2xl md:text-3xl text-ink-900 mb-1">{question.title}</h2>
+              {question.subtitle && <p className="text-muted mb-6">{question.subtitle}</p>}
+              {!question.subtitle && <div className="mb-6" />}
 
-          <div className="grid gap-3">
-            {question.options.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => selectOption(opt.value)}
-                disabled={generating}
-                className={`text-left rounded-xl border p-4 transition-colors hover:border-violet hover:bg-violet/5 disabled:cursor-not-allowed disabled:opacity-50 ${
-                  answeredValue === opt.value
-                    ? "border-violet bg-violet/10"
-                    : "border-line bg-white/50"
-                }`}
-              >
-                <span className="block font-medium text-ink-900">{opt.label}</span>
-                {opt.hint && <span className="block text-sm text-muted mt-0.5">{opt.hint}</span>}
-              </button>
-            ))}
-          </div>
+              <div className="grid gap-3">
+                {question.options.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => selectOption(opt.value)}
+                    disabled={generating}
+                    className={`text-left rounded-xl border p-4 transition-colors hover:border-violet hover:bg-violet/5 disabled:cursor-not-allowed disabled:opacity-50 ${
+                      answeredValue === opt.value
+                        ? "border-violet bg-violet/10"
+                        : "border-line bg-white/50"
+                    }`}
+                  >
+                    <span className="block font-medium text-ink-900">{opt.label}</span>
+                    {opt.hint && <span className="block text-sm text-muted mt-0.5">{opt.hint}</span>}
+                  </button>
+                ))}
+              </div>
 
-          {generating && (
-            <p className="mt-4 text-sm text-violet">Собираем ваш план…</p>
-          )}
-          {generateError && (
-            <p className="mt-4 text-sm text-red-600">{generateError}</p>
-          )}
+              {generating && (
+                <p className="mt-4 text-sm text-violet">Собираем ваш план…</p>
+              )}
+              {generateError && (
+                <p className="mt-4 text-sm text-red-600">{generateError}</p>
+              )}
 
-          {stepIndex > 0 && (
-            <button
-              onClick={goBack}
-              className="mt-6 text-sm text-muted hover:text-ink-900 underline underline-offset-4"
-            >
-              ← Назад
-            </button>
+              {stepIndex > 0 && (
+                <button
+                  onClick={goBack}
+                  className="mt-6 text-sm text-muted hover:text-ink-900 underline underline-offset-4"
+                >
+                  ← Назад
+                </button>
+              )}
+            </>
           )}
         </div>
       )}
@@ -689,12 +714,19 @@ export default function PlanBuilder() {
             </div>
           </div>
 
+          {vectorId && <VectorLockedTeaser />}
+
           <AuthGate
             badge="План готов"
             title="Сохраните план — это займёт 30 секунд"
             subtitle="Зарегистрируйтесь, чтобы открыть план целиком и вернуться к нему в любой момент из личного кабинета."
             onDone={() =>
-              persistPlan(plan, businessName || "Мой бизнес", BUSINESS_TYPE_LABELS[raw.businessType] ?? raw.businessType)
+              persistPlan(
+                plan,
+                businessName || "Мой бизнес",
+                BUSINESS_TYPE_LABELS[raw.businessType] ?? raw.businessType,
+                vectorId ?? undefined
+              )
             }
           />
         </div>
@@ -748,10 +780,17 @@ export default function PlanBuilder() {
             )}
           </div>
 
-          {planMeta.audienceVectorAccess ? (
-            <VectorSection />
-          ) : (
-            <LockedVectorCard />
+          {vectorId && !retakingVector && (
+            planMeta.audienceVectorAccess ? (
+              <VectorResultCard vectorId={vectorId} onRetake={() => setRetakingVector(true)} />
+            ) : (
+              <VectorLockedTeaser />
+            )
+          )}
+          {retakingVector && (
+            <div className="print:hidden mt-10">
+              <VectorQuiz onComplete={handleVectorComplete} />
+            </div>
           )}
 
           <div className="print:hidden flex flex-col gap-3 rounded-xl border border-line bg-white p-5 sm:flex-row sm:items-center sm:justify-between">

@@ -9,13 +9,17 @@
 // как план успешно сохранён в аккаунт (см. persistPlan в PlanBuilder).
 
 import { GeneratedPlan } from "./types";
+import { VectorId } from "./vectors";
 
 const KEY = "promoplan_pending_guest_plan";
 
 export interface PendingGuestPlan {
   businessName: string;
-  businessType: string;
-  plan: GeneratedPlan;
+  // Вектор определяется раньше, чем план (см. PlanBuilder) — поэтому может
+  // быть известен, даже если businessType/plan ещё нет.
+  vectorId?: VectorId;
+  businessType?: string;
+  plan?: GeneratedPlan;
 }
 
 export function savePendingGuestPlan(data: PendingGuestPlan) {

@@ -47,7 +47,7 @@ export default function Home() {
                 Без карты и звонка
               </span>
               <span className="before:mr-1.5 before:text-brand before:content-['✦']">
-                Дешевле агентства от 60 000 ₽/мес
+                В разы дешевле агентства
               </span>
               <span className="before:mr-1.5 before:text-brand before:content-['✦']">
                 Работает с Яндекс.Метрикой

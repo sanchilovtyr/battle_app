@@ -16,7 +16,7 @@ const STOPS = [
 export default function HeroPreviewCard() {
   return (
     <a
-      href="#pricing"
+      href="#wizard"
       className="group relative block rotate-[1.5deg] rounded-[20px] border border-white/15 bg-white p-6 text-ink-900 shadow-[0_35px_70px_rgba(5,6,19,0.45)] transition-transform hover:-translate-y-1 hover:rotate-0"
     >
       <div className="pointer-events-none absolute -inset-x-3 -inset-y-3 -z-10 rounded-[24px] border border-white/15" />
@@ -52,7 +52,7 @@ export default function HeroPreviewCard() {
       </div>
 
       <div className="mt-5 flex items-center gap-1.5 border-t border-line pt-3.5 text-[13px] font-bold text-violet">
-        Посмотреть тарифы
+        Построить такой же план
         <span className="transition-transform group-hover:translate-x-0.5">→</span>
       </div>
     </a>

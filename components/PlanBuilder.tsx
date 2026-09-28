@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useSession, signIn, signOut, getProviders } from "next-auth/react";
 import VectorSection from "@/components/VectorSection";
 import PlanColumn, { PHASE_META } from "@/components/PlanColumn";
 import PlanAnalytics, { LockedAnalytics } from "@/components/PlanAnalytics";
@@ -13,6 +13,7 @@ import { computeEffectivePlanId } from "@/lib/subscriptionUtils";
 import { getBusinesses, addBusiness, clearAccount, Business } from "@/lib/account";
 import { ChecklistState, getChecklist, toggleStep } from "@/lib/checklist";
 import { FunnelSnapshot, getSnapshots } from "@/lib/funnel";
+import { savePendingGuestPlan, loadPendingGuestPlan, clearPendingGuestPlan } from "@/lib/guestPlan";
 
 type RawAnswers = Record<string, string>;
 
@@ -84,7 +85,19 @@ function LockedPhaseCard() {
   );
 }
 
-function AuthGate({ onDone }: { onDone: () => void }) {
+interface AuthGateProps {
+  onDone: () => void;
+  badge?: string;
+  title?: string;
+  subtitle?: string;
+}
+
+function AuthGate({
+  onDone,
+  badge = "Шаг 0 · 30 секунд",
+  title,
+  subtitle = "Понадобится для личного кабинета: там же можно управлять подпиской и скачивать планы.",
+}: AuthGateProps) {
   const [mode, setMode] = useState<"login" | "register">("register");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -92,6 +105,16 @@ function AuthGate({ onDone }: { onDone: () => void }) {
   const [agreedPd, setAgreedPd] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Кнопку "Войти через Яндекс" показываем, только если провайдер реально
+  // настроен на сервере (заданы переменные окружения) — иначе она вела бы в
+  // ошибку.
+  const [yandexEnabled, setYandexEnabled] = useState(false);
+  useEffect(() => {
+    getProviders()
+      .then((providers) => setYandexEnabled(Boolean(providers?.yandex)))
+      .catch(() => {});
+  }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,14 +172,32 @@ function AuthGate({ onDone }: { onDone: () => void }) {
   return (
     <div className="mx-auto max-w-md">
       <span className="inline-block rounded-full bg-violet-soft px-3 py-1 text-xs font-bold text-violet">
-        Шаг 0 · 30 секунд
+        {badge}
       </span>
       <h2 className="font-display text-2xl md:text-3xl text-ink-900 mt-4 mb-1.5">
-        {mode === "register" ? "Для начала — регистрация" : "С возвращением"}
+        {title ?? (mode === "register" ? "Для начала — регистрация" : "С возвращением")}
       </h2>
-      <p className="text-muted mb-5">
-        Понадобится для личного кабинета: там же можно управлять подпиской и скачивать планы.
-      </p>
+      <p className="text-muted mb-5">{subtitle}</p>
+
+      {yandexEnabled && (
+        <>
+          <button
+            type="button"
+            onClick={() => signIn("yandex", { callbackUrl: "/#wizard" })}
+            className="mb-3 flex w-full items-center justify-center gap-2.5 rounded-xl border border-line bg-white p-4 text-sm font-medium text-ink-900 transition-colors hover:bg-soft"
+          >
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#FC3F1D] text-[11px] font-black text-white">
+              Я
+            </span>
+            Войти через Яндекс ID
+          </button>
+          <div className="mb-4 flex items-center gap-3 text-xs text-muted">
+            <span className="h-px flex-1 bg-line" />
+            или
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        </>
+      )}
 
       <div className="mb-5 flex gap-2 rounded-full bg-soft p-1">
         <button
@@ -378,6 +419,50 @@ export default function PlanBuilder() {
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
 
+  // Сохраняет сгенерированный план в личный кабинет (localStorage). Вызывается
+  // сразу после генерации, если пользователь уже вошёл, либо позже — сразу
+  // после регистрации (кнопкой или через Яндекс ID), если план сначала
+  // показали гостю (см. рендер ниже и восстановление после OAuth-редиректа).
+  const persistPlan = (planToSave: GeneratedPlan, name: string, businessTypeLabel: string) => {
+    const saved = addBusiness({
+      name: name || "Мой бизнес",
+      businessType: businessTypeLabel,
+      plan: planToSave,
+    });
+    setBusinesses((prev) => [...prev, saved]);
+    setPlanBusinessId(saved.id);
+    setChecklist(getChecklist(saved.id));
+    setSnapshots(getSnapshots(saved.id));
+    clearPendingGuestPlan();
+  };
+
+  // Пока план показан гостю (ещё не зарегистрировался), держим его копию в
+  // localStorage — иначе вход через Яндекс ID (уводит с сайта и возвращает на
+  // новую загрузку страницы) стёр бы весь прогресс анкеты.
+  useEffect(() => {
+    if (plan && !email) {
+      savePendingGuestPlan({
+        businessName: businessName || "Мой бизнес",
+        businessType: BUSINESS_TYPE_LABELS[raw.businessType] ?? raw.businessType,
+        plan,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan, email]);
+
+  // Если пользователь вошёл (в том числе вернувшись из OAuth Яндекса), а на
+  // экране ещё нет плана — проверяем, не остался ли не сохранённый гостевой
+  // план, и сразу сохраняем его в аккаунт.
+  useEffect(() => {
+    if (status !== "authenticated" || plan) return;
+    const pending = loadPendingGuestPlan();
+    if (!pending) return;
+    setBusinessName(pending.businessName);
+    setPlan(pending.plan);
+    persistPlan(pending.plan, pending.businessName, pending.businessType);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, plan]);
+
   const selectOption = async (value: string) => {
     const next = { ...raw, [question.id]: value };
     setRaw(next);
@@ -396,15 +481,16 @@ export default function PlanBuilder() {
           return;
         }
         setPlan(data.plan);
-        const saved = addBusiness({
-          name: businessName || "Мой бизнес",
-          businessType: BUSINESS_TYPE_LABELS[next.businessType] ?? next.businessType,
-          plan: data.plan as GeneratedPlan,
-        });
-        setBusinesses((prev) => [...prev, saved]);
-        setPlanBusinessId(saved.id);
-        setChecklist(getChecklist(saved.id));
-        setSnapshots(getSnapshots(saved.id));
+        // Анкету и план можно проходить без регистрации — гостю план сначала
+        // просто показывается (частично), в аккаунт он попадёт только после
+        // регистрации, через persistPlan в AuthGate.onDone ниже.
+        if (email) {
+          persistPlan(
+            data.plan as GeneratedPlan,
+            businessName || "Мой бизнес",
+            BUSINESS_TYPE_LABELS[next.businessType] ?? next.businessType
+          );
+        }
       } catch {
         setGenerateError("Не удалось связаться с сервером, попробуйте ещё раз.");
       } finally {
@@ -501,31 +587,35 @@ export default function PlanBuilder() {
 
   return (
     <div id="wizard" className="scroll-mt-24">
-      {!email && <AuthGate onDone={() => {}} />}
-
-      {email && !plan && businessName === null && limitReached && (
+      {!plan && businessName === null && email && limitReached && (
         <LimitReached planId={effectivePlanId} limit={planMeta.businessLimit} />
       )}
 
-      {email && !plan && businessName === null && !limitReached && (
+      {!plan && businessName === null && !(email && limitReached) && (
         <BusinessNameGate onSubmit={setBusinessName} />
       )}
 
-      {email && !plan && businessName !== null && (
+      {!plan && businessName !== null && (
         <div className="mx-auto max-w-xl">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
-            <span>
-              Вы вошли как <b className="text-ink-900">{email}</b>
-            </span>
-            <div className="flex gap-3">
-              <Link href="/account" className="underline underline-offset-4 hover:text-ink-900">
-                Личный кабинет
-              </Link>
-              <button onClick={logOut} className="underline underline-offset-4 hover:text-ink-900">
-                Выйти
-              </button>
+          {email ? (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+              <span>
+                Вы вошли как <b className="text-ink-900">{email}</b>
+              </span>
+              <div className="flex gap-3">
+                <Link href="/account" className="underline underline-offset-4 hover:text-ink-900">
+                  Личный кабинет
+                </Link>
+                <button onClick={logOut} className="underline underline-offset-4 hover:text-ink-900">
+                  Выйти
+                </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <p className="mb-4 text-xs text-muted">
+              Без регистрации — она понадобится только чтобы сохранить готовый план.
+            </p>
+          )}
 
           <div className="mb-6 flex items-center gap-3">
             <span className="font-mono text-xs text-muted">
@@ -576,6 +666,37 @@ export default function PlanBuilder() {
               ← Назад
             </button>
           )}
+        </div>
+      )}
+
+      {plan && !email && (
+        <div className="print:hidden">
+          <div className="mb-8 rounded-xl border border-violet/30 bg-violet/5 p-5 md:p-6">
+            <p className="text-xs font-mono uppercase tracking-wide text-violet mb-2">{businessName}</p>
+            <p className="font-display text-lg md:text-xl text-ink-900">{plan.summary}</p>
+          </div>
+
+          <PlanColumn phase="foundation" entries={plan.foundation} />
+
+          <div className="relative mb-10 overflow-hidden rounded-2xl">
+            <div aria-hidden className="pointer-events-none select-none blur-sm">
+              <PlanColumn phase="traffic" entries={plan.traffic} />
+            </div>
+            <div className="absolute inset-0 flex items-end justify-center bg-gradient-to-b from-transparent via-white/75 to-white pb-6 pt-16">
+              <p className="max-w-xs text-center text-sm font-medium text-ink-900">
+                Дальше — этап «Трафик» и ещё один этап плана ↓
+              </p>
+            </div>
+          </div>
+
+          <AuthGate
+            badge="План готов"
+            title="Сохраните план — это займёт 30 секунд"
+            subtitle="Зарегистрируйтесь, чтобы открыть план целиком и вернуться к нему в любой момент из личного кабинета."
+            onDone={() =>
+              persistPlan(plan, businessName || "Мой бизнес", BUSINESS_TYPE_LABELS[raw.businessType] ?? raw.businessType)
+            }
+          />
         </div>
       )}
 

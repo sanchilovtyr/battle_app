@@ -36,9 +36,12 @@ export default function Home() {
             >
               Попробовать бесплатно
             </a>
-            <div className="mt-6 flex flex-wrap gap-5 text-[13px] text-white/70">
+            <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-[13px] text-white/70">
               <span className="before:mr-1.5 before:text-brand before:content-['✦']">
-                Первый план продвижения бесплатно
+                7 вопросов — около 3 минут
+              </span>
+              <span className="before:mr-1.5 before:text-brand before:content-['✦']">
+                Без карты и звонка
               </span>
             </div>
           </div>
@@ -81,10 +84,11 @@ export default function Home() {
         <div className="mx-auto max-w-6xl px-5 md:px-8">
           <div className="mx-auto mb-12 max-w-xl text-center">
             <h2 className="mb-3 font-display text-3xl tracking-tight text-white md:text-4xl">
-              План превращается в измеримый результат
+              Опыт, который лёг в основу сервиса
             </h2>
             <p className="text-white/60">
-              Когда каналы и первые шаги не приходится собирать из разрозненных советов.
+              15+ лет наша команда вела такие проекты вручную как агентство — и зашила этот опыт в
+              логику «Ключевого слова», чтобы он сам собирал подобный план для вас.
             </p>
           </div>
           <CasesSection />

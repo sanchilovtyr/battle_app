@@ -10,7 +10,10 @@ datasource db {
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
-  passwordHash String
+  // Необязательный: пользователи, зарегистрировавшиеся через вход по Яндекс
+  // ID, пароль не заводят — до тех пор, пока сами не зададут его через
+  // восстановление пароля.
+  passwordHash String?
   name         String   @default("")
   phone        String   @default("")
   createdAt    DateTime @default(now())

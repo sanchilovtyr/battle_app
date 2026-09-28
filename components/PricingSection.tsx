@@ -114,6 +114,11 @@ export default function PricingSection() {
             >
               {paying ? "Переходим к оплате…" : plan.free ? "Попробовать бесплатно" : "Оформить подписку"}
             </button>
+            {!plan.free && (
+              <p className={`mt-2.5 text-center text-xs ${plan.highlighted ? "text-white/50" : "text-muted"}`}>
+                Отменить можно в любой момент
+              </p>
+            )}
             {notice?.planId === plan.id && (
               <p className="mt-3 text-xs text-violet">{notice.text}</p>
             )}

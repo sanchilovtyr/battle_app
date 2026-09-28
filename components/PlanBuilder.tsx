@@ -15,20 +15,14 @@ import { getBusinesses, addBusiness, updateBusinessVector, clearAccount, Busines
 import { ChecklistState, getChecklist, toggleStep } from "@/lib/checklist";
 import { FunnelSnapshot, getSnapshots } from "@/lib/funnel";
 import { savePendingGuestPlan, loadPendingGuestPlan, clearPendingGuestPlan } from "@/lib/guestPlan";
+import { BUSINESS_TYPE_LABELS } from "@/lib/businessTypes";
+import { findCaseForBusinessType } from "@/lib/cases";
+import NicheCaseCallout from "@/components/NicheCaseCallout";
+import ReadinessScore from "@/components/ReadinessScore";
 
 type RawAnswers = Record<string, string>;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const BUSINESS_TYPE_LABELS: Record<string, string> = {
-  retail: "Розничная торговля",
-  services: "Услуги",
-  horeca: "Кафе, ресторан",
-  b2b: "B2B",
-  online_edu: "Онлайн-школа",
-  ecommerce: "Интернет-магазин",
-  other: "Другое",
-};
 
 function toAnswers(raw: RawAnswers): Answers {
   return {
@@ -716,6 +710,11 @@ export default function PlanBuilder() {
 
           {vectorId && <VectorLockedTeaser />}
 
+          {(() => {
+            const c = findCaseForBusinessType(raw.businessType);
+            return c ? <NicheCaseCallout c={c} /> : null;
+          })()}
+
           <AuthGate
             badge="План готов"
             title="Сохраните план — это займёт 30 секунд"
@@ -792,6 +791,28 @@ export default function PlanBuilder() {
               <VectorQuiz onComplete={handleVectorComplete} />
             </div>
           )}
+
+          {planBusinessId && (
+            <div className="print:hidden mt-8">
+              <ReadinessScore
+                businessId={planBusinessId}
+                plan={plan}
+                checklist={checklist}
+                checklistAccess={planMeta.checklistAccess}
+                vectorId={vectorId}
+                snapshots={snapshots}
+              />
+            </div>
+          )}
+
+          {(() => {
+            const c = findCaseForBusinessType(raw.businessType);
+            return c ? (
+              <div className="print:hidden mt-8">
+                <NicheCaseCallout c={c} />
+              </div>
+            ) : null;
+          })()}
 
           <div className="print:hidden flex flex-col gap-3 rounded-xl border border-line bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted">

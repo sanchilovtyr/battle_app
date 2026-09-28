@@ -6,6 +6,9 @@ import JourneySection from "@/components/JourneySection";
 import CasesSection from "@/components/CasesSection";
 import PlanBuilder from "@/components/PlanBuilder";
 import PricingSection from "@/components/PricingSection";
+import ComparisonSection from "@/components/ComparisonSection";
+import FaqSection from "@/components/FaqSection";
+import FinalCtaSection from "@/components/FinalCtaSection";
 import ContactSection from "@/components/ContactSection";
 import DisclaimerSection from "@/components/DisclaimerSection";
 import { EXECUTOR } from "@/lib/offer";
@@ -42,6 +45,12 @@ export default function Home() {
               </span>
               <span className="before:mr-1.5 before:text-brand before:content-['✦']">
                 Без карты и звонка
+              </span>
+              <span className="before:mr-1.5 before:text-brand before:content-['✦']">
+                Дешевле агентства от 60 000 ₽/мес
+              </span>
+              <span className="before:mr-1.5 before:text-brand before:content-['✦']">
+                Работает с Яндекс.Метрикой
               </span>
             </div>
           </div>
@@ -104,7 +113,8 @@ export default function Home() {
             </h2>
             <p className="text-muted">
               Бесплатно вы можете построить и посмотреть план один раз. Подписка открывает
-              чек-листы, обновления, экспорт и многое другое.
+              чек-листы, обновления, экспорт и многое другое. Агентство или маркетолог обойдутся
+              от 60 000 ₽/мес — самый дорогой наш тариф дешевле более чем в 8 раз.
             </p>
           </div>
           <PricingSection />
@@ -112,6 +122,34 @@ export default function Home() {
             Оплата картой российского банка или через СБП. Отменить подписку можно в любой
             момент.
           </p>
+        </div>
+      </section>
+
+      {/* COMPARISON */}
+      <section id="comparison" className="scroll-mt-[68px] bg-white py-16 sm:scroll-mt-[76px] md:py-24">
+        <div className="mx-auto max-w-6xl px-5 md:px-8">
+          <div className="mx-auto mb-10 max-w-xl text-center">
+            <h2 className="mb-3 font-display text-3xl tracking-tight text-ink-900 md:text-4xl">
+              С чем вы сравниваете
+            </h2>
+            <p className="text-muted">
+              Наём агентства или маркетолога — не единственные варианты. Вот честное сравнение.
+            </p>
+          </div>
+          <ComparisonSection />
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="scroll-mt-[68px] bg-gradient-to-b from-white to-soft py-16 sm:scroll-mt-[76px] md:py-24">
+        <div className="mx-auto max-w-6xl px-5 md:px-8">
+          <div className="mx-auto mb-10 max-w-xl text-center">
+            <h2 className="mb-3 font-display text-3xl tracking-tight text-ink-900 md:text-4xl">
+              Наверное, вы думаете...
+            </h2>
+            <p className="text-muted">Собрали вопросы, которые чаще всего задают перед регистрацией.</p>
+          </div>
+          <FaqSection />
         </div>
       </section>
 
@@ -134,6 +172,13 @@ export default function Home() {
       <section className="bg-white py-16 md:py-20">
         <div className="mx-auto max-w-6xl px-5 md:px-8">
           <DisclaimerSection />
+        </div>
+      </section>
+
+      {/* FINAL CTA */}
+      <section className="bg-ink-900 py-16 md:py-20">
+        <div className="mx-auto max-w-6xl px-5 md:px-8">
+          <FinalCtaSection />
         </div>
       </section>
 

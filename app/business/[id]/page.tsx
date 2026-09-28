@@ -13,6 +13,10 @@ import { getPlan, PlanId } from "@/lib/plans";
 import { computeEffectivePlanId } from "@/lib/subscriptionUtils";
 import { ChecklistState, getChecklist, toggleStep } from "@/lib/checklist";
 import { FunnelSnapshot, getSnapshots } from "@/lib/funnel";
+import { businessTypeKeyFromLabel } from "@/lib/businessTypes";
+import { findCaseForBusinessType } from "@/lib/cases";
+import NicheCaseCallout from "@/components/NicheCaseCallout";
+import ReadinessScore from "@/components/ReadinessScore";
 
 function formatDate(iso: string) {
   try {
@@ -241,6 +245,26 @@ export default function BusinessPage({ params }: { params: { id: string } }) {
             <VectorQuiz onComplete={handleVectorComplete} />
           </div>
         )}
+
+        <div className="print:hidden mt-8">
+          <ReadinessScore
+            businessId={business.id}
+            plan={plan}
+            checklist={checklist}
+            checklistAccess={planMeta.checklistAccess}
+            vectorId={business.vectorId}
+            snapshots={snapshots}
+          />
+        </div>
+
+        {(() => {
+          const c = findCaseForBusinessType(businessTypeKeyFromLabel(business.businessType));
+          return c ? (
+            <div className="print:hidden mt-8">
+              <NicheCaseCallout c={c} />
+            </div>
+          ) : null;
+        })()}
 
         {planMeta.pdfExportAccess && (
           <div className="flex flex-col gap-3 rounded-xl border border-line bg-white p-5 sm:flex-row sm:items-center sm:justify-between">

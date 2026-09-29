@@ -11,6 +11,7 @@ import { getPlan, PlanId } from "@/lib/plans";
 import { computeEffectivePlanId } from "@/lib/subscriptionUtils";
 import { getBusinesses, removeBusiness, clearAccount, Business } from "@/lib/account";
 import RenewalRecap from "@/components/RenewalRecap";
+import AuthGate from "@/components/AuthGate";
 
 interface ApiSubscription {
   planId: PlanId;
@@ -41,6 +42,7 @@ export default function AccountPage() {
   });
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -172,21 +174,52 @@ export default function AccountPage() {
   }
 
   if (!email) {
+    if (showLogin) {
+      return (
+        <main>
+          <SiteHeader />
+          <div className="mx-auto max-w-md px-5 py-24 md:px-8">
+            <AuthGate
+              badge="Личный кабинет"
+              title="Вход в личный кабинет"
+              subtitle="Введите email и пароль или войдите через Яндекс ID."
+              initialMode="login"
+              yandexCallbackUrl="/account"
+              onDone={() => setShowLogin(false)}
+            />
+            <button
+              onClick={() => setShowLogin(false)}
+              className="mt-5 block text-sm text-muted underline underline-offset-4 hover:text-ink-900"
+            >
+              ← Назад
+            </button>
+          </div>
+        </main>
+      );
+    }
     return (
       <main>
         <SiteHeader />
         <div className="mx-auto max-w-md px-5 py-24 text-center md:px-8">
           <h1 className="font-display text-2xl text-ink-900 mb-2">Личный кабинет</h1>
           <p className="text-muted mb-6">
-            Чтобы открыть личный кабинет, сначала зарегистрируйтесь или войдите — это можно
-            сделать прямо перед построением плана.
+            Новый пользователь — постройте план, регистрация будет прямо перед его сохранением.
+            Уже есть аккаунт — просто войдите.
           </p>
-          <Link
-            href="/#wizard"
-            className="inline-block rounded-full bg-ink-900 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-ink-800"
-          >
-            Перейти к анкете
-          </Link>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/#wizard"
+              className="inline-block rounded-full bg-ink-900 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-ink-800"
+            >
+              Пройти анкету
+            </Link>
+            <button
+              onClick={() => setShowLogin(true)}
+              className="inline-block rounded-full border border-ink-900/20 px-6 py-3 text-sm font-medium text-ink-900 transition-colors hover:bg-ink-900 hover:text-white"
+            >
+              Войти в ЛК
+            </button>
+          </div>
         </div>
       </main>
     );

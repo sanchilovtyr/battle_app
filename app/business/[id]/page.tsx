@@ -13,10 +13,14 @@ import { getPlan, PlanId } from "@/lib/plans";
 import { computeEffectivePlanId } from "@/lib/subscriptionUtils";
 import { ChecklistState, getChecklist, toggleStep } from "@/lib/checklist";
 import { FunnelSnapshot, getSnapshots } from "@/lib/funnel";
+import { getGrowthTarget } from "@/lib/growthTarget";
 import { businessTypeKeyFromLabel } from "@/lib/businessTypes";
 import { findCaseForBusinessType } from "@/lib/cases";
 import NicheCaseCallout from "@/components/NicheCaseCallout";
 import ReadinessScore from "@/components/ReadinessScore";
+import GrowthPoints, { LockedGrowthPoints } from "@/components/GrowthPoints";
+import ActivityStatusBadge from "@/components/ActivityStatusBadge";
+import PhaseBadges from "@/components/PhaseBadges";
 
 function formatDate(iso: string) {
   try {
@@ -246,7 +250,14 @@ export default function BusinessPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        <div className="print:hidden mt-8">
+        {planMeta.checklistAccess && (
+          <div className="print:hidden mt-8 flex flex-wrap items-center justify-between gap-3">
+            <PhaseBadges businessId={business.id} plan={plan} checklist={checklist} />
+            <ActivityStatusBadge snapshots={snapshots} />
+          </div>
+        )}
+
+        <div className="print:hidden mt-4">
           <ReadinessScore
             businessId={business.id}
             plan={plan}
@@ -255,6 +266,20 @@ export default function BusinessPage({ params }: { params: { id: string } }) {
             vectorId={business.vectorId}
             snapshots={snapshots}
           />
+        </div>
+
+        <div className="print:hidden mt-8">
+          {planMeta.growthPointsAccess ? (
+            <GrowthPoints
+              businessId={business.id}
+              plan={plan}
+              checklist={checklist}
+              snapshots={snapshots}
+              target={getGrowthTarget(business.id)}
+            />
+          ) : (
+            <LockedGrowthPoints />
+          )}
         </div>
 
         {(() => {

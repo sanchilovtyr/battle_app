@@ -6,6 +6,7 @@ import JourneySection from "@/components/JourneySection";
 import CasesSection from "@/components/CasesSection";
 import PlanBuilder from "@/components/PlanBuilder";
 import PricingSection from "@/components/PricingSection";
+import EngagementHook from "@/components/EngagementHook";
 import ComparisonSection from "@/components/ComparisonSection";
 import FaqSection from "@/components/FaqSection";
 import FinalCtaSection from "@/components/FinalCtaSection";
@@ -55,6 +56,9 @@ export default function Home() {
               <span className="before:mr-1.5 before:text-brand before:content-['✦']">
                 Маркетолог не нужен
               </span>
+            </div>
+            <div className="mt-6">
+              <EngagementHook />
             </div>
           </div>
           <HeroPreviewCard />

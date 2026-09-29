@@ -19,10 +19,39 @@ import { BUSINESS_TYPE_LABELS } from "@/lib/businessTypes";
 import { findCaseForBusinessType } from "@/lib/cases";
 import NicheCaseCallout from "@/components/NicheCaseCallout";
 import ReadinessScore from "@/components/ReadinessScore";
+import GuestReadinessTeaser from "@/components/GuestReadinessTeaser";
+import ActivityStatusBadge from "@/components/ActivityStatusBadge";
+import PhaseBadges from "@/components/PhaseBadges";
 
 type RawAnswers = Record<string, string>;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Короткие ярлыки блоков плана, которые собираются по мере ответов — вместо
+// абстрактного "3 из 7" показываем, какие конкретные части плана уже учтены.
+// Честно: план правда собирается из этих ответов, ничего не выдумываем.
+const WIZARD_BLOCK_LABELS: Record<string, string> = {
+  businessType: "Ниша",
+  hasSite: "Сайт",
+  hasSocial: "Соцсети",
+  goal: "Цель",
+  budget: "Бюджет",
+  geo: "География",
+  experience: "Опыт",
+};
+
+// Что именно определит текущий вопрос — показываем перед ответом, чтобы
+// решение об ответе ощущалось не как формальность, а как реальный вклад в
+// итоговый план.
+const WIZARD_BLOCK_HINTS: Record<string, string> = {
+  businessType: "Подберём кейсы и форматы под вашу нишу",
+  hasSite: "Учтём в разделе «Фундамент» — нужен ли лендинг",
+  hasSocial: "Повлияет на каналы в разделе «Трафик»",
+  goal: "Определит акцент всего плана",
+  budget: "Подберём каналы, которые впишутся в бюджет",
+  geo: "Учтём в выборе гео-таргетинга и площадок",
+  experience: "Настроим глубину шагов под ваш опыт",
+};
 
 function toAnswers(raw: RawAnswers): Answers {
   return {
@@ -634,7 +663,7 @@ export default function PlanBuilder() {
             <VectorQuiz onComplete={handleVectorComplete} />
           ) : (
             <>
-              <div className="mb-6 flex items-center gap-3">
+              <div className="mb-3 flex items-center gap-3">
                 <span className="font-mono text-xs text-muted">
                   {String(stepIndex + 1).padStart(2, "0")} / {String(QUESTIONS.length).padStart(2, "0")}
                 </span>
@@ -646,9 +675,35 @@ export default function PlanBuilder() {
                 </div>
               </div>
 
+              <div className="mb-5 flex flex-wrap gap-1.5">
+                {QUESTIONS.map((q, i) => {
+                  const answered = raw[q.id] !== undefined;
+                  const active = i === stepIndex;
+                  return (
+                    <span
+                      key={q.id}
+                      className={
+                        "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors " +
+                        (answered
+                          ? "bg-violet text-white"
+                          : active
+                          ? "bg-violet-soft text-violet"
+                          : "bg-soft text-ink-900/30")
+                      }
+                    >
+                      {answered ? "✓ " : ""}
+                      {WIZARD_BLOCK_LABELS[q.id] ?? q.id}
+                    </span>
+                  );
+                })}
+              </div>
+
               <h2 className="font-display text-2xl md:text-3xl text-ink-900 mb-1">{question.title}</h2>
-              {question.subtitle && <p className="text-muted mb-6">{question.subtitle}</p>}
-              {!question.subtitle && <div className="mb-6" />}
+              {question.subtitle && <p className="text-muted mb-2">{question.subtitle}</p>}
+              {WIZARD_BLOCK_HINTS[question.id] && (
+                <p className="mb-6 text-xs text-violet">→ {WIZARD_BLOCK_HINTS[question.id]}</p>
+              )}
+              {!question.subtitle && !WIZARD_BLOCK_HINTS[question.id] && <div className="mb-6" />}
 
               <div className="grid gap-3">
                 {question.options.map((opt) => (
@@ -709,6 +764,8 @@ export default function PlanBuilder() {
           </div>
 
           {vectorId && <VectorLockedTeaser />}
+
+          <GuestReadinessTeaser plan={plan} vectorId={vectorId} />
 
           {(() => {
             const c = findCaseForBusinessType(raw.businessType);
@@ -792,8 +849,15 @@ export default function PlanBuilder() {
             </div>
           )}
 
+          {planBusinessId && planMeta.checklistAccess && (
+            <div className="print:hidden mt-8 flex flex-wrap items-center justify-between gap-3">
+              <PhaseBadges businessId={planBusinessId} plan={plan} checklist={checklist} />
+              <ActivityStatusBadge snapshots={snapshots} />
+            </div>
+          )}
+
           {planBusinessId && (
-            <div className="print:hidden mt-8">
+            <div className="print:hidden mt-4">
               <ReadinessScore
                 businessId={planBusinessId}
                 plan={plan}

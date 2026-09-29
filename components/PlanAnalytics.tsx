@@ -3,7 +3,19 @@
 import { useState } from "react";
 import { GeneratedPlan } from "@/lib/types";
 import { ChecklistState, phaseProgress, unfinishedSteps } from "@/lib/checklist";
-import { FunnelSnapshot, addSnapshot, removeSnapshot } from "@/lib/funnel";
+import {
+  DROP_REASON_LABELS,
+  DropReason,
+  FUNNEL_CHANNEL_LABELS,
+  FunnelChannel,
+  FunnelSnapshot,
+  RESPONSE_SPEED_LABELS,
+  ResponseSpeed,
+  addSnapshot,
+  removeSnapshot,
+  streakMonths,
+} from "@/lib/funnel";
+import { getGrowthTarget, setGrowthTarget } from "@/lib/growthTarget";
 import MetrikaConnect from "@/components/MetrikaConnect";
 
 const MONTHS = [
@@ -72,6 +84,21 @@ interface PlanAnalyticsProps {
   onSnapshotsChange: (next: FunnelSnapshot[]) => void;
 }
 
+const EMPTY_FORM = {
+  label: "",
+  visitors: "",
+  leads: "",
+  sales: "",
+  repeat: "",
+  avgReceipt: "",
+  adSpend: "",
+  channel: "" as FunnelChannel | "",
+  responseSpeed: "" as ResponseSpeed | "",
+  dropReason: "" as DropReason | "",
+  reviewsCount: "",
+  reviewsRating: "",
+};
+
 export default function PlanAnalytics({
   businessId,
   plan,
@@ -79,18 +106,17 @@ export default function PlanAnalytics({
   snapshots,
   onSnapshotsChange,
 }: PlanAnalyticsProps) {
-  const [form, setForm] = useState({
-    label: defaultLabel(),
-    visitors: "",
-    leads: "",
-    sales: "",
-    repeat: "",
-  });
+  const [form, setForm] = useState({ ...EMPTY_FORM, label: defaultLabel() });
   const [showForm, setShowForm] = useState(snapshots.length === 0);
+  const [showExtra, setShowExtra] = useState(false);
+
+  const [target, setTarget] = useState(() => getGrowthTarget(businessId));
+  const [targetSaved, setTargetSaved] = useState(false);
 
   const latest = snapshots.length ? snapshots[snapshots.length - 1] : null;
   const stages = latest ? buildStages(latest) : [];
   const weak = weakestStage(stages);
+  const streak = streakMonths(snapshots);
 
   const foundationProgress = phaseProgress(checklist, plan.foundation);
   const trafficProgress = phaseProgress(checklist, plan.traffic);
@@ -102,10 +128,24 @@ export default function PlanAnalytics({
     const leads = Math.max(0, Math.round(Number(form.leads) || 0));
     const sales = Math.max(0, Math.round(Number(form.sales) || 0));
     const repeat = Math.max(0, Math.round(Number(form.repeat) || 0));
-    const next = addSnapshot(businessId, { label: form.label.trim() || defaultLabel(), visitors, leads, sales, repeat });
+    const next = addSnapshot(businessId, {
+      label: form.label.trim() || defaultLabel(),
+      visitors,
+      leads,
+      sales,
+      repeat,
+      avgReceipt: form.avgReceipt ? Math.max(0, Number(form.avgReceipt)) : undefined,
+      adSpend: form.adSpend ? Math.max(0, Number(form.adSpend)) : undefined,
+      channel: form.channel || undefined,
+      responseSpeed: form.responseSpeed || undefined,
+      dropReason: form.dropReason || undefined,
+      reviewsCount: form.reviewsCount ? Math.max(0, Math.round(Number(form.reviewsCount))) : undefined,
+      reviewsRating: form.reviewsRating ? Math.max(0, Math.min(5, Number(form.reviewsRating))) : undefined,
+    });
     onSnapshotsChange(next);
-    setForm({ label: defaultLabel(), visitors: "", leads: "", sales: "", repeat: "" });
+    setForm({ ...EMPTY_FORM, label: defaultLabel() });
     setShowForm(false);
+    setShowExtra(false);
   };
 
   const handleRemove = (id: string) => {
@@ -120,6 +160,13 @@ export default function PlanAnalytics({
       sales: data.sales !== null ? String(data.sales) : f.sales,
     }));
     setShowForm(true);
+  };
+
+  const saveTarget = (e: React.FormEvent) => {
+    e.preventDefault();
+    setTarget(setGrowthTarget(businessId, target));
+    setTargetSaved(true);
+    setTimeout(() => setTargetSaved(false), 2000);
   };
 
   // Куда указывает найденное узкое место с точки зрения плана.
@@ -153,7 +200,14 @@ export default function PlanAnalytics({
 
   return (
     <section className="mb-8 rounded-2xl border border-line bg-white p-6">
-      <h2 className="font-display text-lg text-ink-900 mb-1.5">Где вы теряете клиентов</h2>
+      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-display text-lg text-ink-900">Где вы теряете клиентов</h2>
+        {streak >= 2 && (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-soft px-3 py-1 text-xs font-bold text-violet">
+            🔥 {streak} {streak < 5 ? "месяца" : "месяцев"} подряд
+          </span>
+        )}
+      </div>
       <p className="text-sm text-muted mb-5">
         Сервис не подключён к счётчикам вашего сайта или CRM — эти цифры вы вносите сами, раз в
         период. По ним и по выполненным пунктам плана мы покажем, на каком шаге воронки клиенты
@@ -212,6 +266,20 @@ export default function PlanAnalytics({
               </div>
             ))}
           </div>
+          {(latest.avgReceipt || latest.adSpend || latest.reviewsCount) && (
+            <p className="mt-2.5 text-xs text-muted">
+              {[
+                latest.avgReceipt ? `Средний чек: ${latest.avgReceipt.toLocaleString("ru-RU")} ₽` : null,
+                latest.adSpend ? `Бюджет: ${latest.adSpend.toLocaleString("ru-RU")} ₽` : null,
+                latest.reviewsCount
+                  ? `Отзывы: ${latest.reviewsCount}${latest.reviewsRating ? ` (рейтинг ${latest.reviewsRating})` : ""}`
+                  : null,
+                latest.channel ? `Канал: ${FUNNEL_CHANNEL_LABELS[latest.channel]}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )}
         </div>
       )}
 
@@ -241,6 +309,46 @@ export default function PlanAnalytics({
       )}
 
       <MetrikaConnect businessId={businessId} onAutofill={handleAutofill} />
+
+      {/* Собственная цель клиента — используется в "Точках роста", чтобы сравнивать факт со своим планом, а не с абстрактной нормой */}
+      <form onSubmit={saveTarget} className="mb-6 rounded-xl border border-line bg-soft p-4">
+        <p className="mb-3 text-sm font-medium text-ink-900">Ваша цель на месяц (необязательно)</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="mb-1.5 block text-sm text-muted">Заявок в месяц</label>
+            <input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={target.leadsPerMonth ?? ""}
+              onChange={(e) => setTarget({ ...target, leadsPerMonth: e.target.value ? Number(e.target.value) : undefined })}
+              placeholder="Например, 50"
+              className="w-full rounded-xl border border-line bg-white p-3 text-ink-900 outline-none focus:border-violet"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm text-muted">Продаж в месяц</label>
+            <input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={target.salesPerMonth ?? ""}
+              onChange={(e) => setTarget({ ...target, salesPerMonth: e.target.value ? Number(e.target.value) : undefined })}
+              placeholder="Например, 15"
+              className="w-full rounded-xl border border-line bg-white p-3 text-ink-900 outline-none focus:border-violet"
+            />
+          </div>
+        </div>
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            type="submit"
+            className="rounded-full border border-ink-900/20 px-4 py-2 text-sm font-medium text-ink-900 transition hover:bg-ink-900 hover:text-white"
+          >
+            Сохранить цель
+          </button>
+          {targetSaved && <span className="text-xs text-violet">Сохранено</span>}
+        </div>
+      </form>
 
       {showForm ? (
         <form onSubmit={submit} className="rounded-xl border border-line bg-soft p-4">
@@ -275,6 +383,120 @@ export default function PlanAnalytics({
               </div>
             ))}
           </div>
+
+          {showExtra ? (
+            <div className="mt-5 border-t border-line pt-4">
+              <p className="mb-3 text-sm font-medium text-ink-900">
+                Дополнительно (необязательно, но точки роста получатся точнее)
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-sm text-muted">Средний чек, ₽</label>
+                  <input
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    value={form.avgReceipt}
+                    onChange={(e) => setForm({ ...form, avgReceipt: e.target.value })}
+                    placeholder="Например, 1500"
+                    className="w-full rounded-xl border border-line bg-white p-3 text-ink-900 outline-none focus:border-violet"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm text-muted">Рекламный бюджет за период, ₽</label>
+                  <input
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    value={form.adSpend}
+                    onChange={(e) => setForm({ ...form, adSpend: e.target.value })}
+                    placeholder="Например, 30000"
+                    className="w-full rounded-xl border border-line bg-white p-3 text-ink-900 outline-none focus:border-violet"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm text-muted">Основной канал обращений</label>
+                  <select
+                    value={form.channel}
+                    onChange={(e) => setForm({ ...form, channel: e.target.value as FunnelChannel | "" })}
+                    className="w-full rounded-xl border border-line bg-white p-3 text-ink-900 outline-none focus:border-violet"
+                  >
+                    <option value="">Не указано</option>
+                    {Object.entries(FUNNEL_CHANNEL_LABELS).map(([key, label]) => (
+                      <option key={key} value={key}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm text-muted">Скорость ответа на заявки</label>
+                  <select
+                    value={form.responseSpeed}
+                    onChange={(e) => setForm({ ...form, responseSpeed: e.target.value as ResponseSpeed | "" })}
+                    className="w-full rounded-xl border border-line bg-white p-3 text-ink-900 outline-none focus:border-violet"
+                  >
+                    <option value="">Не указано</option>
+                    {Object.entries(RESPONSE_SPEED_LABELS).map(([key, label]) => (
+                      <option key={key} value={key}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm text-muted">Основная причина отказов</label>
+                  <select
+                    value={form.dropReason}
+                    onChange={(e) => setForm({ ...form, dropReason: e.target.value as DropReason | "" })}
+                    className="w-full rounded-xl border border-line bg-white p-3 text-ink-900 outline-none focus:border-violet"
+                  >
+                    <option value="">Не указано</option>
+                    {Object.entries(DROP_REASON_LABELS).map(([key, label]) => (
+                      <option key={key} value={key}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm text-muted">Число отзывов сейчас (Карты/2ГИС)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    value={form.reviewsCount}
+                    onChange={(e) => setForm({ ...form, reviewsCount: e.target.value })}
+                    placeholder="Например, 24"
+                    className="w-full rounded-xl border border-line bg-white p-3 text-ink-900 outline-none focus:border-violet"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm text-muted">Текущий рейтинг (0–5)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={5}
+                    step={0.1}
+                    inputMode="decimal"
+                    value={form.reviewsRating}
+                    onChange={(e) => setForm({ ...form, reviewsRating: e.target.value })}
+                    placeholder="Например, 4.7"
+                    className="w-full rounded-xl border border-line bg-white p-3 text-ink-900 outline-none focus:border-violet"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowExtra(true)}
+              className="mt-4 text-sm text-violet underline underline-offset-4 hover:text-ink-900"
+            >
+              + Добавить средний чек, бюджет и другие данные
+            </button>
+          )}
+
           <div className="mt-4 flex items-center gap-3">
             <button
               type="submit"

@@ -25,6 +25,20 @@ export interface ReadinessItem {
 export interface ReadinessResult {
   pct: number;
   items: ReadinessItem[];
+  level: string;
+}
+
+const LEVELS: { min: number; label: string }[] = [
+  { min: 100, label: "Мастер продвижения" },
+  { min: 75, label: "Профи" },
+  { min: 50, label: "Уверенный" },
+  { min: 25, label: "На старте" },
+  { min: 0, label: "Новичок" },
+];
+
+/** Название уровня по проценту готовности — чтобы цифра ощущалась как игровой прогресс, а не сухая метрика. */
+export function readinessLevel(pct: number): string {
+  return (LEVELS.find((l) => pct >= l.min) ?? LEVELS[LEVELS.length - 1]).label;
 }
 
 export function computeReadiness(input: ReadinessInput): ReadinessResult {
@@ -48,5 +62,5 @@ export function computeReadiness(input: ReadinessInput): ReadinessResult {
 
   const done = items.filter((i) => i.done).length;
   const pct = Math.round((done / items.length) * 100);
-  return { pct, items };
+  return { pct, items, level: readinessLevel(pct) };
 }

@@ -10,6 +10,7 @@ import { deleteThreadForEmail } from "@/lib/support";
 import { getPlan, PlanId } from "@/lib/plans";
 import { computeEffectivePlanId } from "@/lib/subscriptionUtils";
 import { getBusinesses, removeBusiness, clearAccount, Business } from "@/lib/account";
+import RenewalRecap from "@/components/RenewalRecap";
 
 interface ApiSubscription {
   planId: PlanId;
@@ -145,11 +146,22 @@ export default function AccountPage() {
   };
 
   const plan = getPlan(subscription.planId);
-  const effectiveLimit = getPlan(computeEffectivePlanId(subscription)).businessLimit;
+  const effectivePlan = getPlan(computeEffectivePlanId(subscription));
+  const effectiveLimit = effectivePlan.businessLimit;
   const isPaid = !plan.free;
   const periodStillActive = Boolean(
     subscription.currentPeriodEnd && new Date(subscription.currentPeriodEnd).getTime() > Date.now()
   );
+
+  const daysUntilRenewal = subscription.currentPeriodEnd
+    ? Math.ceil((new Date(subscription.currentPeriodEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null;
+  const showRenewalRecap =
+    isPaid &&
+    subscription.status === "active" &&
+    daysUntilRenewal !== null &&
+    daysUntilRenewal >= 0 &&
+    daysUntilRenewal <= 5;
 
   if (status === "loading" || !dataLoaded) {
     return (
@@ -198,6 +210,15 @@ export default function AccountPage() {
           <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-3.5 text-sm text-red-700">
             {actionError}
           </div>
+        )}
+
+        {showRenewalRecap && subscription.currentPeriodEnd && (
+          <RenewalRecap
+            businesses={businesses}
+            checklistAccess={effectivePlan.checklistAccess}
+            daysLeft={daysUntilRenewal!}
+            renewDate={formatDate(subscription.currentPeriodEnd)}
+          />
         )}
 
         <NewsSection />

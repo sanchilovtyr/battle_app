@@ -5,7 +5,19 @@ import { GeneratedPlan } from "@/lib/types";
 import { ChecklistState } from "@/lib/checklist";
 import { FunnelSnapshot } from "@/lib/funnel";
 import { GrowthTarget } from "@/lib/growthTarget";
-import { computeGrowthPoints } from "@/lib/growthPoints";
+import { computeGrowthPoints, GrowthPoint } from "@/lib/growthPoints";
+import { GrowthPointOverrideData } from "@/lib/adminGrowthPoints";
+
+function applyOverrides(
+  points: GrowthPoint[],
+  overrides: Record<string, GrowthPointOverrideData>
+): GrowthPoint[] {
+  return points.map((p) => {
+    const o = overrides[p.id];
+    if (!o) return p;
+    return { ...p, title: o.title, body: o.body, action: o.action || undefined };
+  });
+}
 
 export function LockedGrowthPoints() {
   return (
@@ -45,6 +57,7 @@ interface MetrikaStatus {
 
 export default function GrowthPoints({ businessId, plan, checklist, snapshots, target }: GrowthPointsProps) {
   const [metrika, setMetrika] = useState<MetrikaStatus>({ connected: false });
+  const [overrides, setOverrides] = useState<Record<string, GrowthPointOverrideData>>({});
 
   useEffect(() => {
     fetch(`/api/metrika/status?businessId=${businessId}`)
@@ -55,14 +68,24 @@ export default function GrowthPoints({ businessId, plan, checklist, snapshots, t
       .catch(() => {});
   }, [businessId]);
 
-  const points = computeGrowthPoints({
-    plan,
-    checklist,
-    snapshots,
-    metrikaConnected: Boolean(metrika.connected && metrika.counterId),
-    metrikaGoalsSet: Boolean(metrika.leadsGoalId || metrika.salesGoalId),
-    target,
-  });
+  useEffect(() => {
+    fetch("/api/growth-points/overrides")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setOverrides(data?.overrides ?? {}))
+      .catch(() => {});
+  }, []);
+
+  const points = applyOverrides(
+    computeGrowthPoints({
+      plan,
+      checklist,
+      snapshots,
+      metrikaConnected: Boolean(metrika.connected && metrika.counterId),
+      metrikaGoalsSet: Boolean(metrika.leadsGoalId || metrika.salesGoalId),
+      target,
+    }),
+    overrides
+  );
 
   return (
     <section className="rounded-2xl border border-line bg-white p-5 md:p-6">

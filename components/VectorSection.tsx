@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { VECTOR_QUESTIONS, determineVector, getVector, VectorId } from "@/lib/vectors";
+import { useEffect, useState } from "react";
+import { VECTOR_QUESTIONS, determineVector, getVector, VectorId, VectorProfile } from "@/lib/vectors";
+import { applyVectorOverride, VectorOverrideData } from "@/lib/adminVectors";
 
 // Вектор аудитории теперь определяется один раз, в самом начале (до вопросов
 // о бизнесе — см. PlanBuilder), и хранится вместе с бизнесом. Этот файл
@@ -81,7 +82,19 @@ interface VectorResultCardProps {
 }
 
 export function VectorResultCard({ vectorId, onRetake }: VectorResultCardProps) {
-  const result = getVector(vectorId);
+  const [result, setResult] = useState<VectorProfile>(() => getVector(vectorId));
+
+  useEffect(() => {
+    setResult(getVector(vectorId));
+    fetch("/api/vectors/overrides")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const overrides = (data?.overrides ?? {}) as Record<string, VectorOverrideData>;
+        setResult(applyVectorOverride(getVector(vectorId), overrides));
+      })
+      .catch(() => {});
+  }, [vectorId]);
+
   return (
     <div className="print:hidden mt-10 rounded-2xl border border-violet/30 bg-violet-soft p-6 md:p-7">
       <span className="mb-2 inline-block rounded-full bg-white px-3 py-1 text-xs font-bold text-violet">

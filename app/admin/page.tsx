@@ -4,16 +4,20 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import AdminUsersTab from "@/components/AdminUsersTab";
 import AdminModulesTab from "@/components/AdminModulesTab";
+import AdminVectorsTab from "@/components/AdminVectorsTab";
+import AdminGrowthPointsTab from "@/components/AdminGrowthPointsTab";
 import AdminRevenueTab from "@/components/AdminRevenueTab";
 import AdminMessagesTab from "@/components/AdminMessagesTab";
 import AdminNewsTab from "@/components/AdminNewsTab";
 
-type Tab = "users" | "modules" | "revenue" | "messages" | "news";
+type Tab = "users" | "modules" | "vectors" | "growth-points" | "revenue" | "messages" | "news";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "users", label: "Пользователи" },
   { id: "messages", label: "Сообщения" },
   { id: "modules", label: "Модули плана" },
+  { id: "vectors", label: "Векторы аудитории" },
+  { id: "growth-points", label: "Точки роста" },
   { id: "news", label: "Новости" },
   { id: "revenue", label: "Выручка" },
 ];
@@ -140,6 +144,8 @@ export default function AdminPage() {
         {tab === "users" && <AdminUsersTab onMessage={openMessageComposer} />}
         {tab === "messages" && <AdminMessagesTab prefillEmail={messagePrefill} />}
         {tab === "modules" && <AdminModulesTab />}
+        {tab === "vectors" && <AdminVectorsTab />}
+        {tab === "growth-points" && <AdminGrowthPointsTab />}
         {tab === "news" && <AdminNewsTab />}
         {tab === "revenue" && <AdminRevenueTab />}
       </div>

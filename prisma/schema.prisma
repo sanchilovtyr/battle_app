@@ -74,6 +74,32 @@ model ModuleOverride {
   updatedAt    DateTime @updatedAt
 }
 
+/// Правки текста векторов аудитории (lib/vectors.ts) — переопределяют
+/// поля конкретного вектора по его id из кода
+model VectorOverride {
+  vectorId   String   @id
+  name       String
+  tagline    String
+  pain       String
+  dream      String
+  toneAdvice String
+  adTips     Json // string[]
+  avoid      String
+  updatedAt  DateTime @updatedAt
+}
+
+/// Правки текста точек роста (lib/growthPoints.ts) — переопределяют
+/// title/body/action конкретного правила по его id из кода. Для правил с
+/// динамическим текстом (например, с подставленными цифрами воронки) правка
+/// заменяет текст на статический — как и с обычными модулями плана
+model GrowthPointOverride {
+  pointId   String   @id
+  title     String
+  body      String
+  action    String   @default("")
+  updatedAt DateTime @updatedAt
+}
+
 /// Полностью новые модули, добавленные из админки — со своим простым
 /// правилом скоринга (приоритет + типы бизнеса), а не кодом
 model CustomModule {

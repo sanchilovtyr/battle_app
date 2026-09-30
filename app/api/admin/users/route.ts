@@ -9,7 +9,7 @@ interface UserWithSubscription {
   name: string;
   phone: string;
   createdAt: Date;
-  subscription: { planId: string; status: string } | null;
+  subscription: { planId: string; status: string; currentPeriodEnd: Date | null } | null;
 }
 
 export async function GET() {
@@ -32,6 +32,7 @@ export async function GET() {
       createdAt: u.createdAt,
       planId: u.subscription?.planId ?? "trial",
       status: u.subscription?.status ?? "active",
+      currentPeriodEnd: u.subscription?.currentPeriodEnd ?? null,
     })),
   });
 }

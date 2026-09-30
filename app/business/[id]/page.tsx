@@ -190,41 +190,7 @@ export default function BusinessPage({ params }: { params: { id: string } }) {
           <p className="font-display text-lg md:text-xl text-ink-900">{plan.summary}</p>
         </div>
 
-        <PlanColumn
-          phase="foundation"
-          entries={plan.foundation}
-          checklist={planMeta.checklistAccess ? checklist : undefined}
-          onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
-        />
-        <PlanColumn
-          phase="traffic"
-          entries={plan.traffic}
-          checklist={planMeta.checklistAccess ? checklist : undefined}
-          onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
-        />
-        {planMeta.fullPlanAccess ? (
-          <PlanColumn
-            phase="retention"
-            entries={plan.retention}
-            checklist={planMeta.checklistAccess ? checklist : undefined}
-            onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
-          />
-        ) : (
-          <LockedPhaseCard />
-        )}
-
-        {planMeta.checklistAccess ? (
-          <PlanAnalytics
-            businessId={business.id}
-            plan={plan}
-            checklist={checklist}
-            snapshots={snapshots}
-            onSnapshotsChange={setSnapshots}
-          />
-        ) : (
-          <LockedAnalytics />
-        )}
-
+        {/* 1. Вектор клиента */}
         {business.vectorId && !retakingVector && (
           planMeta.audienceVectorAccess ? (
             <VectorResultCard vectorId={business.vectorId} onRetake={() => setRetakingVector(true)} />
@@ -233,7 +199,7 @@ export default function BusinessPage({ params }: { params: { id: string } }) {
           )
         )}
         {!business.vectorId && !retakingVector && (
-          <div className="print:hidden mt-10 rounded-2xl border border-dashed border-ink-900/20 bg-soft p-6 text-center">
+          <div className="print:hidden rounded-2xl border border-dashed border-ink-900/20 bg-soft p-6 text-center">
             <h3 className="font-display text-lg text-ink-900 mb-1.5">Вектор аудитории</h3>
             <p className="mx-auto mb-4 max-w-md text-sm text-muted">
               Этот бизнес создан до того, как вектор аудитории стали определять вместе с планом.
@@ -248,29 +214,53 @@ export default function BusinessPage({ params }: { params: { id: string } }) {
           </div>
         )}
         {retakingVector && (
-          <div className="print:hidden mt-10">
+          <div className="print:hidden">
             <VectorQuiz onComplete={handleVectorComplete} />
           </div>
         )}
 
-        {planMeta.checklistAccess && (
-          <div className="print:hidden mt-8 flex flex-wrap items-center justify-between gap-3">
-            <PhaseBadges businessId={business.id} plan={plan} checklist={checklist} />
-            <ActivityStatusBadge snapshots={snapshots} />
-          </div>
-        )}
-
-        <div className="print:hidden mt-4">
-          <ReadinessScore
-            businessId={business.id}
-            plan={plan}
-            checklist={checklist}
-            checklistAccess={planMeta.checklistAccess}
-            vectorId={business.vectorId}
-            snapshots={snapshots}
+        {/* 2. Этапы плана */}
+        <div className="mt-8">
+          <PlanColumn
+            phase="foundation"
+            entries={plan.foundation}
+            checklist={planMeta.checklistAccess ? checklist : undefined}
+            onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
           />
+          <PlanColumn
+            phase="traffic"
+            entries={plan.traffic}
+            checklist={planMeta.checklistAccess ? checklist : undefined}
+            onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
+          />
+          {planMeta.fullPlanAccess ? (
+            <PlanColumn
+              phase="retention"
+              entries={plan.retention}
+              checklist={planMeta.checklistAccess ? checklist : undefined}
+              onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
+            />
+          ) : (
+            <LockedPhaseCard />
+          )}
         </div>
 
+        {/* 3. Где вы теряете клиентов */}
+        <div className="mt-8">
+          {planMeta.checklistAccess ? (
+            <PlanAnalytics
+              businessId={business.id}
+              plan={plan}
+              checklist={checklist}
+              snapshots={snapshots}
+              onSnapshotsChange={setSnapshots}
+            />
+          ) : (
+            <LockedAnalytics />
+          )}
+        </div>
+
+        {/* 4. Точки роста компании */}
         <div className="print:hidden mt-8">
           {planMeta.growthPointsAccess ? (
             <GrowthPoints
@@ -285,6 +275,24 @@ export default function BusinessPage({ params }: { params: { id: string } }) {
           )}
         </div>
 
+        {/* 5. Индекс готовности (вместе со значками фаз и активности) */}
+        {planMeta.checklistAccess && (
+          <div className="print:hidden mt-8 flex flex-wrap items-center justify-between gap-3">
+            <PhaseBadges businessId={business.id} plan={plan} checklist={checklist} />
+            <ActivityStatusBadge snapshots={snapshots} />
+          </div>
+        )}
+        <div className="print:hidden mt-4">
+          <ReadinessScore
+            businessId={business.id}
+            plan={plan}
+            checklist={checklist}
+            checklistAccess={planMeta.checklistAccess}
+            vectorId={business.vectorId}
+            snapshots={snapshots}
+          />
+        </div>
+
         {(() => {
           const c = findCaseForBusinessType(businessTypeKeyFromLabel(business.businessType));
           return c ? (
@@ -295,7 +303,7 @@ export default function BusinessPage({ params }: { params: { id: string } }) {
         })()}
 
         {planMeta.pdfExportAccess && (
-          <div className="flex flex-col gap-3 rounded-xl border border-line bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-8 flex flex-col gap-3 rounded-xl border border-line bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted">Скачайте план или получите его на почту.</p>
             <div className="flex shrink-0 flex-wrap gap-2">
               <button

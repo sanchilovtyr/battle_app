@@ -1,0 +1,326 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { PLANS, PlanId } from "@/lib/plans";
+
+interface RealUser {
+  id: string;
+  email: string;
+  name: string;
+  phone: string;
+  createdAt: string;
+  planId: PlanId;
+  status: "active" | "cancelled";
+  currentPeriodEnd: string | null;
+}
+
+function formatDate(iso: string) {
+  try {
+    return new Date(iso).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+  } catch {
+    return iso;
+  }
+}
+
+export default function AdminUsersTab({ onMessage }: { onMessage: (email: string) => void }) {
+  const [filter, setFilter] = useState<PlanId | "all">("all");
+  const [users, setUsers] = useState<RealUser[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/users")
+      .then(async (res) => {
+        if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || "Ошибка загрузки");
+        return res.json();
+      })
+      .then((data) => setUsers(data.users))
+      .catch((e) => setError(String(e.message || e)));
+  }, []);
+
+  const deleteUser = async (id: string, email: string) => {
+    if (!window.confirm(`Удалить аккаунт ${email}? Это необратимо.`)) return;
+    const res = await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      alert("Не удалось удалить пользователя");
+      return;
+    }
+    setUsers((prev) => (prev ?? []).filter((u) => u.id !== id));
+  };
+
+  const [changingId, setChangingId] = useState<string | null>(null);
+
+  const changePlan = async (id: string, planId: PlanId) => {
+    setChangingId(id);
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId }),
+      });
+      if (!res.ok) {
+        alert("Не удалось поменять тариф");
+        return;
+      }
+      setUsers((prev) => (prev ?? []).map((u) => (u.id === id ? { ...u, planId, status: "active" } : u)));
+    } finally {
+      setChangingId(null);
+    }
+  };
+
+  const [extendDays, setExtendDays] = useState<Record<string, string>>({});
+  const [extendingId, setExtendingId] = useState<string | null>(null);
+
+  const extendSubscription = async (id: string) => {
+    const days = Number(extendDays[id] ?? "7");
+    if (!Number.isInteger(days) || days <= 0) {
+      alert("Введите целое число дней больше нуля");
+      return;
+    }
+    setExtendingId(id);
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ extendDays: days }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error || "Не удалось продлить тариф");
+        return;
+      }
+      setUsers((prev) =>
+        (prev ?? []).map((u) =>
+          u.id === id ? { ...u, status: "active", currentPeriodEnd: data.currentPeriodEnd } : u
+        )
+      );
+    } finally {
+      setExtendingId(null);
+    }
+  };
+
+  const filtered = useMemo(
+    () => (users ?? []).filter((u) => filter === "all" || u.planId === filter),
+    [users, filter]
+  );
+
+  const counts = useMemo(() => {
+    const list = users ?? [];
+    const map: Record<string, number> = { all: list.length };
+    for (const plan of PLANS) {
+      map[plan.id] = list.filter((u) => u.planId === plan.id).length;
+    }
+    return map;
+  }, [users]);
+
+  return (
+    <div>
+      <p className="mb-4 text-sm text-muted">
+        Тариф аккаунта можно менять здесь напрямую, без оплаты — например, чтобы зайти под своим
+        аккаунтом и проверить, как выглядит и работает каждый тариф.
+      </p>
+      <div className="mb-5 flex flex-wrap gap-2">
+        <button
+          onClick={() => setFilter("all")}
+          className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+            filter === "all" ? "bg-ink-900 text-white" : "border border-line bg-white text-ink-900"
+          }`}
+        >
+          Все тарифы ({counts.all ?? 0})
+        </button>
+        {PLANS.map((plan) => (
+          <button
+            key={plan.id}
+            onClick={() => setFilter(plan.id)}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+              filter === plan.id ? "bg-ink-900 text-white" : "border border-line bg-white text-ink-900"
+            }`}
+          >
+            {plan.name} ({counts[plan.id] ?? 0})
+          </button>
+        ))}
+      </div>
+
+      {error && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3.5 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {!users && !error && <p className="text-sm text-muted">Загрузка…</p>}
+
+      {users && users.length === 0 && (
+        <p className="text-sm text-muted">Пока никто не зарегистрировался.</p>
+      )}
+
+      {users && users.length > 0 && (
+        <>
+          {/* Мобильная версия — карточки вместо таблицы */}
+          <div className="space-y-3 md:hidden">
+            {filtered.map((u) => {
+              return (
+                <div key={u.id} className="rounded-2xl border border-line bg-white p-4">
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-ink-900">{u.name || "—"}</p>
+                      <p className="truncate text-sm text-muted">{u.email}</p>
+                      {u.phone && <p className="text-sm text-muted">{u.phone}</p>}
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        u.status === "active"
+                          ? "bg-violet-soft text-violet"
+                          : "bg-ink-900/10 text-ink-900/60"
+                      }`}
+                    >
+                      {u.status === "active" ? "Активен" : "Отменён"}
+                    </span>
+                  </div>
+                  <p className="mb-2 text-sm text-muted">{formatDate(u.createdAt)}</p>
+                  <select
+                    value={u.planId}
+                    disabled={changingId === u.id}
+                    onChange={(e) => changePlan(u.id, e.target.value as PlanId)}
+                    className="mb-3 w-full rounded-xl border border-line bg-white p-2.5 text-sm text-ink-900 outline-none focus:border-violet disabled:opacity-50"
+                  >
+                    {PLANS.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mb-2 text-xs text-muted">
+                    Тариф до: {u.currentPeriodEnd ? formatDate(u.currentPeriodEnd) : "—"}
+                  </p>
+                  <div className="mb-3 flex gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={365}
+                      value={extendDays[u.id] ?? "7"}
+                      onChange={(e) => setExtendDays((prev) => ({ ...prev, [u.id]: e.target.value }))}
+                      className="w-20 rounded-xl border border-line bg-white p-2.5 text-sm text-ink-900 outline-none focus:border-violet"
+                    />
+                    <button
+                      onClick={() => extendSubscription(u.id)}
+                      disabled={extendingId === u.id}
+                      className="flex-1 rounded-full border border-ink-900/20 px-3 py-2 text-xs font-medium text-ink-900 hover:bg-soft disabled:opacity-50"
+                    >
+                      {extendingId === u.id ? "Продлеваем…" : "Продлить дней"}
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => onMessage(u.email)}
+                      className="flex-1 rounded-full border border-ink-900/20 px-3 py-2 text-xs font-medium text-ink-900 hover:bg-soft"
+                    >
+                      Написать
+                    </button>
+                    <button
+                      onClick={() => deleteUser(u.id, u.email)}
+                      className="flex-1 rounded-full border border-red-200 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50"
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Десктопная версия — таблица */}
+          <div className="hidden overflow-x-auto rounded-2xl border border-line bg-white md:block">
+            <table className="w-full min-w-[720px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-line text-xs uppercase tracking-wide text-muted">
+                  <th className="p-4 font-medium">Пользователь</th>
+                  <th className="p-4 font-medium">Тариф</th>
+                  <th className="p-4 font-medium">Статус</th>
+                  <th className="p-4 font-medium">Тариф до</th>
+                  <th className="p-4 font-medium">Регистрация</th>
+                  <th className="p-4 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((u) => {
+                  return (
+                    <tr key={u.id} className="border-b border-line last:border-0">
+                      <td className="p-4">
+                        <div className="font-medium text-ink-900">{u.name || "—"}</div>
+                        <div className="text-muted">{u.email}</div>
+                        {u.phone && <div className="text-muted">{u.phone}</div>}
+                      </td>
+                      <td className="p-4">
+                        <select
+                          value={u.planId}
+                          disabled={changingId === u.id}
+                          onChange={(e) => changePlan(u.id, e.target.value as PlanId)}
+                          className="rounded-xl border border-line bg-white p-2 text-sm text-ink-900 outline-none focus:border-violet disabled:opacity-50"
+                        >
+                          {PLANS.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="p-4">
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            u.status === "active"
+                              ? "bg-violet-soft text-violet"
+                              : "bg-ink-900/10 text-ink-900/60"
+                          }`}
+                        >
+                          {u.status === "active" ? "Активен" : "Отменён"}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <div className="mb-1.5 text-muted">
+                          {u.currentPeriodEnd ? formatDate(u.currentPeriodEnd) : "—"}
+                        </div>
+                        <div className="flex gap-1.5">
+                          <input
+                            type="number"
+                            min={1}
+                            max={365}
+                            value={extendDays[u.id] ?? "7"}
+                            onChange={(e) => setExtendDays((prev) => ({ ...prev, [u.id]: e.target.value }))}
+                            className="w-16 rounded-lg border border-line bg-white p-1.5 text-xs text-ink-900 outline-none focus:border-violet"
+                          />
+                          <button
+                            onClick={() => extendSubscription(u.id)}
+                            disabled={extendingId === u.id}
+                            className="rounded-full border border-ink-900/20 px-2.5 py-1.5 text-xs font-medium text-ink-900 hover:bg-soft disabled:opacity-50"
+                          >
+                            {extendingId === u.id ? "…" : "+ дней"}
+                          </button>
+                        </div>
+                      </td>
+                      <td className="p-4 text-muted">{formatDate(u.createdAt)}</td>
+                      <td className="p-4">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => onMessage(u.email)}
+                            className="rounded-full border border-ink-900/20 px-3 py-1.5 text-xs font-medium text-ink-900 hover:bg-soft"
+                          >
+                            Написать
+                          </button>
+                          <button
+                            onClick={() => deleteUser(u.id, u.email)}
+                            className="rounded-full border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                          >
+                            Удалить
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

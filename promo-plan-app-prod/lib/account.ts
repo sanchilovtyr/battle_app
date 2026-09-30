@@ -1,0 +1,103 @@
+// Список "бизнесов" пользователя пока живёт в localStorage браузера, в отличие
+// от аккаунта, подписки и платежей — они уже переехали в базу данных (см.
+// app/api/me, app/api/payments/*). Перенос бизнесов в БД — следующий шаг,
+// см. README.
+
+import { GeneratedPlan } from "./types";
+import { VectorId } from "./vectors";
+import { clearChecklist } from "./checklist";
+import { clearFunnel } from "./funnel";
+
+const EMAIL_KEY = "promoplan_email";
+const PROFILE_KEY = "promoplan_profile";
+const SUBSCRIPTION_KEY = "promoplan_subscription";
+const BUSINESSES_KEY = "promoplan_businesses";
+
+export interface Business {
+  id: string;
+  name: string;
+  businessType: string;
+  createdAt: string;
+  // Сам сгенерированный план — чтобы его можно было открыть повторно в личном
+  // кабинете, а не только сразу после прохождения анкеты.
+  plan?: GeneratedPlan;
+  // Вектор аудитории определяется один раз, перед вопросами о бизнесе (см.
+  // PlanBuilder), и хранится вместе с планом — чтобы не пропадал при
+  // обновлении страницы и не считался заново. Расшифровка (боль/мечта/
+  // рекомендации) показывается только на тарифах с audienceVectorAccess —
+  // сам факт прохождения хранится для всех, чтобы при апгрейде тарифа не
+  // нужно было проходить квиз заново.
+  vectorId?: VectorId;
+}
+
+function safeGet(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSet(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // локальное хранилище недоступно (приватный режим и т.п.) — для прототипа не критично
+  }
+}
+
+function safeRemove(key: string) {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // не критично
+  }
+}
+
+/** Очищает локальные остатки старой (localStorage) версии аккаунта и список бизнесов.
+ *  Вызывается при выходе и при удалении аккаунта. */
+export function clearAccount() {
+  safeRemove(EMAIL_KEY);
+  safeRemove(PROFILE_KEY);
+  safeRemove(SUBSCRIPTION_KEY);
+  safeRemove(BUSINESSES_KEY);
+}
+
+export function getBusinesses(): Business[] {
+  const raw = safeGet(BUSINESSES_KEY);
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) as Business[];
+  } catch {
+    return [];
+  }
+}
+
+export function addBusiness(entry: Omit<Business, "id" | "createdAt">): Business {
+  const business: Business = {
+    ...entry,
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    createdAt: new Date().toISOString(),
+  };
+  const next = [...getBusinesses(), business];
+  safeSet(BUSINESSES_KEY, JSON.stringify(next));
+  return business;
+}
+
+export function removeBusiness(id: string) {
+  const next = getBusinesses().filter((b) => b.id !== id);
+  safeSet(BUSINESSES_KEY, JSON.stringify(next));
+  clearChecklist(id);
+  clearFunnel(id);
+}
+
+export function getBusiness(id: string): Business | null {
+  return getBusinesses().find((b) => b.id === id) ?? null;
+}
+
+/** Обновляет вектор аудитории уже сохранённого бизнеса (кнопка "Пройти заново"). */
+export function updateBusinessVector(businessId: string, vectorId: VectorId) {
+  const next = getBusinesses().map((b) => (b.id === businessId ? { ...b, vectorId } : b));
+  safeSet(BUSINESSES_KEY, JSON.stringify(next));
+  return next;
+}

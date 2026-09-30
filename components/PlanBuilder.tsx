@@ -1,28 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import AuthGate from "@/components/AuthGate";
-import { VectorQuiz, VectorResultCard, VectorLockedTeaser } from "@/components/VectorSection";
+import { VectorQuiz, VectorLockedTeaser } from "@/components/VectorSection";
 import { VectorId } from "@/lib/vectors";
-import PlanColumn, { PHASE_META } from "@/components/PlanColumn";
-import PlanAnalytics, { LockedAnalytics } from "@/components/PlanAnalytics";
+import PlanColumn from "@/components/PlanColumn";
 import { QUESTIONS } from "@/lib/questions";
 import { Answers, GeneratedPlan } from "@/lib/types";
 import { getPlan, PlanId } from "@/lib/plans";
 import { computeEffectivePlanId } from "@/lib/subscriptionUtils";
-import { getBusinesses, addBusiness, updateBusinessVector, clearAccount, Business } from "@/lib/account";
-import { ChecklistState, getChecklist, toggleStep } from "@/lib/checklist";
-import { FunnelSnapshot, getSnapshots } from "@/lib/funnel";
+import { getBusinesses, addBusiness, clearAccount, Business } from "@/lib/account";
 import { savePendingGuestPlan, loadPendingGuestPlan, clearPendingGuestPlan } from "@/lib/guestPlan";
 import { BUSINESS_TYPE_LABELS } from "@/lib/businessTypes";
 import { findCaseForBusinessType } from "@/lib/cases";
 import NicheCaseCallout from "@/components/NicheCaseCallout";
-import ReadinessScore from "@/components/ReadinessScore";
 import GuestReadinessTeaser from "@/components/GuestReadinessTeaser";
-import ActivityStatusBadge from "@/components/ActivityStatusBadge";
-import PhaseBadges from "@/components/PhaseBadges";
 
 type RawAnswers = Record<string, string>;
 
@@ -62,28 +57,6 @@ function toAnswers(raw: RawAnswers): Answers {
     geo: raw.geo as Answers["geo"],
     experience: raw.experience as Answers["experience"],
   };
-}
-
-function LockedPhaseCard() {
-  const meta = PHASE_META.retention;
-  return (
-    <div className="print:hidden mb-10 rounded-xl border border-dashed border-ink-900/20 bg-soft p-6 text-center">
-      <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-ink-900 text-brand">
-        🔒
-      </div>
-      <h3 className="font-display text-lg text-ink-900 mb-1.5">{meta.title}</h3>
-      <p className="mx-auto mb-4 max-w-md text-sm text-muted">
-        На пробном тарифе этот этап скрыт. Оформите платную подписку, чтобы открыть удержание
-        клиентов и повторные продажи — вместе с чек-листами и обновлениями плана.
-      </p>
-      <a
-        href="#pricing"
-        className="inline-block rounded-full bg-ink-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-ink-800"
-      >
-        Открыть все этапы
-      </a>
-    </div>
-  );
 }
 
 function BusinessNameGate({ onSubmit }: { onSubmit: (name: string) => void }) {
@@ -156,6 +129,7 @@ function LimitReached({ planId, limit }: { planId: PlanId; limit: number }) {
 }
 
 export default function PlanBuilder() {
+  const router = useRouter();
   const { data: session, status } = useSession();
   const email = session?.user?.email ?? null;
 
@@ -165,14 +139,9 @@ export default function PlanBuilder() {
 
   const [businessName, setBusinessName] = useState<string | null>(null);
   const [vectorId, setVectorId] = useState<VectorId | null>(null);
-  const [retakingVector, setRetakingVector] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [raw, setRaw] = useState<RawAnswers>({});
   const [plan, setPlan] = useState<GeneratedPlan | null>(null);
-  const [planBusinessId, setPlanBusinessId] = useState<string | null>(null);
-  const [checklist, setChecklist] = useState<ChecklistState>({});
-  const [snapshots, setSnapshots] = useState<FunnelSnapshot[]>([]);
-  const [pdfNotice, setPdfNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (status !== "authenticated") {
@@ -195,13 +164,9 @@ export default function PlanBuilder() {
     setEffectivePlanId("trial");
     setBusinessName(null);
     setVectorId(null);
-    setRetakingVector(false);
     setRaw({});
     setStepIndex(0);
     setPlan(null);
-    setPlanBusinessId(null);
-    setChecklist({});
-    setSnapshots([]);
     signOut({ redirect: false });
   };
 
@@ -215,11 +180,13 @@ export default function PlanBuilder() {
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
 
-  // Сохраняет сгенерированный план (вместе с уже определённым вектором
-  // аудитории) в личный кабинет (localStorage). Вызывается сразу после
-  // генерации, если пользователь уже вошёл, либо позже — сразу после
-  // регистрации (кнопкой или через Яндекс ID), если план сначала показали
-  // гостю (см. рендер ниже и восстановление после OAuth-редиректа).
+  // Сохраняет сгенерированный план в личный кабинет (localStorage) и сразу
+  // уводит на его отдельную страницу — /business/[id] уже умеет показывать
+  // всё (чек-лист, аналитику, точки роста, PDF), дублировать это прямо в
+  // анкете на лендинге больше не нужно. Вызывается сразу после генерации,
+  // если пользователь уже вошёл, либо позже — сразу после регистрации
+  // (кнопкой или через Яндекс ID), если план сначала показали гостю (см.
+  // рендер ниже и восстановление после OAuth-редиректа).
   const persistPlan = (
     planToSave: GeneratedPlan,
     name: string,
@@ -232,22 +199,14 @@ export default function PlanBuilder() {
       plan: planToSave,
       vectorId: vectorIdToSave,
     });
-    setBusinesses((prev) => [...prev, saved]);
-    setPlanBusinessId(saved.id);
-    setChecklist(getChecklist(saved.id));
-    setSnapshots(getSnapshots(saved.id));
     clearPendingGuestPlan();
+    router.push(`/business/${saved.id}`);
   };
 
-  // Вектор определяется раньше плана, поэтому обновляет вектор и для уже
-  // сохранённого бизнеса (кнопка "Пройти заново"), и для того, что ещё не
-  // сохранён (тогда planBusinessId ещё нет — просто держим в состоянии).
+  // Вектор аудитории определяется до генерации плана — на этом этапе бизнес
+  // ещё не сохранён, поэтому просто держим значение в состоянии.
   const handleVectorComplete = (id: VectorId) => {
     setVectorId(id);
-    setRetakingVector(false);
-    if (planBusinessId) {
-      updateBusinessVector(planBusinessId, id);
-    }
   };
 
   // Пока бизнес показан гостю (ещё не зарегистрировался), держим его прогресс
@@ -333,82 +292,6 @@ export default function PlanBuilder() {
 
   const goBack = () => {
     if (stepIndex > 0) setStepIndex((s) => s - 1);
-  };
-
-  const startNewBusiness = () => {
-    setRaw({});
-    setStepIndex(0);
-    setPlan(null);
-    setPlanBusinessId(null);
-    setChecklist({});
-    setSnapshots([]);
-    setBusinessName(null);
-    setVectorId(null);
-    setRetakingVector(false);
-    setPdfNotice(null);
-  };
-
-  const handleToggleStep = (moduleId: string, stepIndex: number, stepsLength: number) => {
-    if (!planBusinessId) return;
-    setChecklist(toggleStep(planBusinessId, moduleId, stepIndex, stepsLength));
-  };
-
-  const [downloadingPdf, setDownloadingPdf] = useState(false);
-
-  const downloadPdf = async () => {
-    if (!plan || !businessName) return;
-    setPdfNotice(null);
-    setDownloadingPdf(true);
-    try {
-      const res = await fetch("/api/plan/download-pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessName, plan }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setPdfNotice(data.error || "Не удалось скачать PDF, попробуйте ещё раз.");
-        return;
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "plan.pdf";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch {
-      setPdfNotice("Не удалось связаться с сервером, попробуйте ещё раз.");
-    } finally {
-      setDownloadingPdf(false);
-    }
-  };
-
-  const [sendingPdf, setSendingPdf] = useState(false);
-
-  const emailPdf = async () => {
-    if (!plan || !businessName) return;
-    setSendingPdf(true);
-    setPdfNotice(null);
-    try {
-      const res = await fetch("/api/plan/email-pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessName, plan }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setPdfNotice(data.error || "Не удалось отправить PDF на почту, попробуйте ещё раз.");
-      } else {
-        setPdfNotice(`PDF отправлен на ${email}.`);
-      }
-    } catch {
-      setPdfNotice("Не удалось связаться с сервером, попробуйте ещё раз.");
-    } finally {
-      setSendingPdf(false);
-    }
   };
 
   const answeredValue = raw[question?.id];
@@ -579,141 +462,11 @@ export default function PlanBuilder() {
       )}
 
       {email && plan && (
-        <div>
-          <div id="print-plan">
-            <div className="mb-8 rounded-xl border border-violet/30 bg-violet/5 p-5 md:p-6">
-              <p className="text-xs font-mono uppercase tracking-wide text-violet mb-2">
-                {businessName}
-              </p>
-              <p className="font-display text-lg md:text-xl text-ink-900">{plan.summary}</p>
-            </div>
-
-            <PlanColumn
-              phase="foundation"
-              entries={plan.foundation}
-              checklist={planMeta.checklistAccess ? checklist : undefined}
-              onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
-            />
-            <PlanColumn
-              phase="traffic"
-              entries={plan.traffic}
-              checklist={planMeta.checklistAccess ? checklist : undefined}
-              onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
-            />
-            {planMeta.fullPlanAccess && (
-              <PlanColumn
-                phase="retention"
-                entries={plan.retention}
-                checklist={planMeta.checklistAccess ? checklist : undefined}
-                onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
-              />
-            )}
-          </div>
-
-          {!planMeta.fullPlanAccess && <LockedPhaseCard />}
-
-          <div className="print:hidden">
-            {planMeta.checklistAccess && planBusinessId ? (
-              <PlanAnalytics
-                businessId={planBusinessId}
-                plan={plan}
-                checklist={checklist}
-                snapshots={snapshots}
-                onSnapshotsChange={setSnapshots}
-              />
-            ) : (
-              <LockedAnalytics />
-            )}
-          </div>
-
-          {vectorId && !retakingVector && (
-            planMeta.audienceVectorAccess ? (
-              <VectorResultCard vectorId={vectorId} onRetake={() => setRetakingVector(true)} />
-            ) : (
-              <VectorLockedTeaser />
-            )
-          )}
-          {retakingVector && (
-            <div className="print:hidden mt-10">
-              <VectorQuiz onComplete={handleVectorComplete} />
-            </div>
-          )}
-
-          {planBusinessId && planMeta.checklistAccess && (
-            <div className="print:hidden mt-8 flex flex-wrap items-center justify-between gap-3">
-              <PhaseBadges businessId={planBusinessId} plan={plan} checklist={checklist} />
-              <ActivityStatusBadge snapshots={snapshots} />
-            </div>
-          )}
-
-          {planBusinessId && (
-            <div className="print:hidden mt-4">
-              <ReadinessScore
-                businessId={planBusinessId}
-                plan={plan}
-                checklist={checklist}
-                checklistAccess={planMeta.checklistAccess}
-                vectorId={vectorId}
-                snapshots={snapshots}
-              />
-            </div>
-          )}
-
-          {(() => {
-            const c = findCaseForBusinessType(raw.businessType);
-            return c ? (
-              <div className="print:hidden mt-8">
-                <NicheCaseCallout c={c} />
-              </div>
-            ) : null;
-          })()}
-
-          <div className="print:hidden flex flex-col gap-3 rounded-xl border border-line bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-muted">
-              {planMeta.pdfExportAccess
-                ? `Тариф «${planMeta.name}» открывает экспорт плана — скачайте PDF или получите его на почту.`
-                : planMeta.fullPlanAccess
-                ? "Экспорт плана в PDF и отправка на почту доступны на тарифе «Команда»."
-                : "Пробный план показывает первые 2 этапа из 3. Подписка открывает все этапы, чек-листы и обновления."}
-            </p>
-            <div className="flex shrink-0 flex-wrap gap-2">
-              {planMeta.pdfExportAccess && (
-                <>
-                  <button
-                    onClick={downloadPdf}
-                    disabled={downloadingPdf}
-                    className="rounded-full border border-ink-900/20 px-4 py-2 text-sm font-medium text-ink-900 transition-colors hover:bg-ink-900 hover:text-white disabled:opacity-50"
-                  >
-                    {downloadingPdf ? "Готовим…" : "Скачать PDF"}
-                  </button>
-                  <button
-                    onClick={emailPdf}
-                    disabled={sendingPdf}
-                    className="rounded-full border border-ink-900/20 px-4 py-2 text-sm font-medium text-ink-900 transition-colors hover:bg-ink-900 hover:text-white disabled:opacity-50"
-                  >
-                    {sendingPdf ? "Отправляем…" : "Получить PDF на почту"}
-                  </button>
-                </>
-              )}
-              {!planMeta.pdfExportAccess && (
-                <a
-                  href="/#pricing"
-                  className="rounded-full border border-ink-900/20 px-4 py-2 text-sm font-medium text-ink-900 transition-colors hover:bg-ink-900 hover:text-white"
-                >
-                  Перейти на «Команда»
-                </a>
-              )}
-              <button
-                onClick={startNewBusiness}
-                className="rounded-full bg-ink-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-800"
-              >
-                Новый бизнес
-              </button>
-            </div>
-          </div>
-          {pdfNotice && (
-            <p className="print:hidden mt-3 text-xs font-mono text-violet">{pdfNotice}</p>
-          )}
+        // План уже сохранён в персональный кабинет — persistPlan сразу переключает
+        // на /business/[id], этот текст виден на экране только на долю секунды,
+        // пока идёт переход.
+        <div className="print:hidden py-16 text-center text-sm text-muted">
+          Открываем ваш план…
         </div>
       )}
     </div>

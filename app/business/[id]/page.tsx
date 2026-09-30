@@ -21,6 +21,7 @@ import ReadinessScore from "@/components/ReadinessScore";
 import GrowthPoints, { LockedGrowthPoints } from "@/components/GrowthPoints";
 import ActivityStatusBadge from "@/components/ActivityStatusBadge";
 import PhaseBadges from "@/components/PhaseBadges";
+import LockedPhaseCard from "@/components/LockedPhaseCard";
 
 function formatDate(iso: string) {
   try {
@@ -201,13 +202,15 @@ export default function BusinessPage({ params }: { params: { id: string } }) {
           checklist={planMeta.checklistAccess ? checklist : undefined}
           onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
         />
-        {planMeta.fullPlanAccess && (
+        {planMeta.fullPlanAccess ? (
           <PlanColumn
             phase="retention"
             entries={plan.retention}
             checklist={planMeta.checklistAccess ? checklist : undefined}
             onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
           />
+        ) : (
+          <LockedPhaseCard />
         )}
 
         {planMeta.checklistAccess ? (

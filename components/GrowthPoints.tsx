@@ -13,7 +13,7 @@ export function LockedGrowthPoints() {
       <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-ink-900 text-brand">
         🔒
       </div>
-      <h3 className="font-display text-lg text-ink-900 mb-1.5">Точки роста</h3>
+      <h3 className="font-display text-lg text-ink-900 mb-1.5">Точки роста компании</h3>
       <p className="mx-auto mb-4 max-w-md text-sm text-muted">
         На тарифе «Команда» точки роста сверяют чек-лист, воронку и данные Яндекс.Метрики между
         собой и показывают, где конкретно стоит усилить продвижение — а не просто общие советы.
@@ -66,7 +66,7 @@ export default function GrowthPoints({ businessId, plan, checklist, snapshots, t
 
   return (
     <section className="rounded-2xl border border-line bg-white p-5 md:p-6">
-      <h3 className="font-display text-lg text-ink-900 mb-1.5">Точки роста</h3>
+      <h3 className="font-display text-lg text-ink-900 mb-1.5">Точки роста компании</h3>
       <p className="mb-5 text-sm text-muted">
         Сверяем чек-лист, воронку и Метрику между собой — не общие советы, а то, что видно именно
         по вашим цифрам.

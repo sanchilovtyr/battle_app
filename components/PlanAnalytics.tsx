@@ -244,15 +244,15 @@ export default function PlanAnalytics({
               Удалить запись
             </button>
           </div>
-          <div className="grid grid-cols-4 gap-2 text-center">
+          <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
             {[
               { label: "Обращения", value: latest.visitors },
               { label: "Заявки", value: latest.leads },
               { label: "Продажи", value: latest.sales },
               { label: "Повторные", value: latest.repeat },
             ].map((s, i) => (
-              <div key={s.label} className="rounded-xl border border-line p-3">
-                <p className="font-display text-xl text-ink-900">{s.value}</p>
+              <div key={s.label} className="rounded-xl border border-line p-2.5 sm:p-3">
+                <p className="font-display text-lg text-ink-900 sm:text-xl">{s.value}</p>
                 <p className="mt-0.5 text-xs text-muted">{s.label}</p>
                 {i > 0 && stages[i - 1]?.value !== null && (
                   <p
@@ -266,8 +266,8 @@ export default function PlanAnalytics({
               </div>
             ))}
           </div>
-          {(latest.avgReceipt || latest.adSpend || latest.reviewsCount) && (
-            <p className="mt-2.5 text-xs text-muted">
+          {(latest.avgReceipt || latest.adSpend || latest.reviewsCount || latest.channel) && (
+            <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
               {[
                 latest.avgReceipt ? `Средний чек: ${latest.avgReceipt.toLocaleString("ru-RU")} ₽` : null,
                 latest.adSpend ? `Бюджет: ${latest.adSpend.toLocaleString("ru-RU")} ₽` : null,
@@ -276,9 +276,16 @@ export default function PlanAnalytics({
                   : null,
                 latest.channel ? `Канал: ${FUNNEL_CHANNEL_LABELS[latest.channel]}` : null,
               ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
+                .filter((item): item is string => Boolean(item))
+                .map((item) => (
+                  <span
+                    key={item}
+                    className="last:after:content-none after:ml-3 after:text-muted/40 after:content-['·']"
+                  >
+                    {item}
+                  </span>
+                ))}
+            </div>
           )}
         </div>
       )}

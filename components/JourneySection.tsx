@@ -71,7 +71,7 @@ export default function JourneySection() {
 
       <article
         style={{ transitionDelay: visible ? `${STEPS.length * 120}ms` : "0ms" }}
-        className={`relative z-10 flex min-h-[215px] flex-col justify-between rounded-2xl border border-ink-900 bg-ink-900 p-6 text-white transition-all duration-500 ease-out motion-reduce:transition-none ${
+        className={`relative z-10 flex min-h-[215px] flex-col rounded-2xl border border-ink-900 bg-ink-900 p-6 text-white transition-all duration-500 ease-out motion-reduce:transition-none ${
           visible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
         }`}
       >
@@ -97,6 +97,24 @@ export default function JourneySection() {
               {s.l}
             </span>
           ))}
+        </div>
+
+        <div className="mt-4 border-t border-white/10 pt-4">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-white/40">
+            На тарифах выше — ещё глубже
+          </p>
+          <ul className="space-y-1.5">
+            {[
+              "Вектор аудитории и рекомендации по рекламе",
+              "Точки роста бизнеса",
+              "Аналитика: где теряете клиентов",
+            ].map((t) => (
+              <li key={t} className="flex items-center gap-2 text-[12px] text-white/70">
+                <span className="text-brand">✓</span>
+                {t}
+              </li>
+            ))}
+          </ul>
         </div>
       </article>
     </div>

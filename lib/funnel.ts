@@ -43,43 +43,6 @@ export const DROP_REASON_LABELS: Record<DropReason, string> = {
   unknown: "Не знаю / не уточняли",
 };
 
-export type FunnelChannel =
-  | "yandex_direct"
-  | "vk_ads"
-  | "maps_reviews"
-  | "referral"
-  | "social_organic"
-  | "offline"
-  | "other";
-
-export const FUNNEL_CHANNEL_LABELS: Record<FunnelChannel, string> = {
-  yandex_direct: "Яндекс Директ",
-  vk_ads: "Реклама VK",
-  maps_reviews: "Карты / отзывы",
-  referral: "Сарафан / рекомендации",
-  social_organic: "Соцсети / Telegram (без рекламы)",
-  offline: "Офлайн (вывеска, листовки, точка)",
-  other: "Другое",
-};
-
-export type ResponseSpeed = "under_1h" | "same_day" | "slower";
-
-export const RESPONSE_SPEED_LABELS: Record<ResponseSpeed, string> = {
-  under_1h: "В течение часа",
-  same_day: "В течение дня",
-  slower: "Дольше суток",
-};
-
-export type DropReason = "price" | "no_answer" | "competitor" | "changed_mind" | "unknown";
-
-export const DROP_REASON_LABELS: Record<DropReason, string> = {
-  price: "Дорого / не устроила цена",
-  no_answer: "Долго не отвечали на заявку",
-  competitor: "Выбрали конкурента",
-  changed_mind: "Просто передумали",
-  unknown: "Не знаю / не уточняли",
-};
-
 export interface FunnelSnapshot {
   id: string;
   createdAt: string;

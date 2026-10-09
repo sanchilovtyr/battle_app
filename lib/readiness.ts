@@ -60,7 +60,7 @@ export function computeReadiness(input: ReadinessInput): ReadinessResult {
   } else {
     items.push({ label: "План построен и готов к работе", done: true });
     items.push({
-      label: "Чек-листы, аналитика и Метрика — на тарифах «Бизнес» и «Команда»",
+      label: "Чек-листы, аналитика и Метрика — на тарифах «Бизнес» и «Премиум»",
       done: false,
     });
   }

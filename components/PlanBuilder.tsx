@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import AuthGate from "@/components/AuthGate";
-import PlanColumn from "@/components/PlanColumn";
 import { QUESTIONS } from "@/lib/questions";
 import { Answers, GeneratedPlan } from "@/lib/types";
 import { getPlan, PlanId } from "@/lib/plans";
@@ -13,9 +12,6 @@ import { computeEffectivePlanId } from "@/lib/subscriptionUtils";
 import { getBusinesses, addBusiness, clearAccount, Business } from "@/lib/account";
 import { savePendingGuestPlan, loadPendingGuestPlan, clearPendingGuestPlan } from "@/lib/guestPlan";
 import { BUSINESS_TYPE_LABELS } from "@/lib/businessTypes";
-import { findCaseForBusinessType } from "@/lib/cases";
-import NicheCaseCallout from "@/components/NicheCaseCallout";
-import GuestReadinessTeaser from "@/components/GuestReadinessTeaser";
 
 type RawAnswers = Record<string, string>;
 
@@ -245,9 +241,8 @@ export default function PlanBuilder() {
           return;
         }
         setPlan(data.plan);
-        // Анкету и план можно проходить без регистрации — гостю план сначала
-        // просто показывается (частично), в аккаунт он попадёт только после
-        // регистрации, через persistPlan в AuthGate.onDone ниже.
+        // Анкету можно пройти без регистрации, но сам план гость увидит только
+        // после неё: в аккаунт он попадёт через persistPlan в AuthGate.onDone ниже.
         if (email) {
           persistPlan(
             data.plan as GeneratedPlan,
@@ -303,7 +298,7 @@ export default function PlanBuilder() {
             </div>
           ) : (
             <p className="mb-4 text-xs text-muted">
-              Без регистрации — она понадобится только чтобы сохранить готовый план.
+              Анкета без регистрации — она понадобится, чтобы открыть готовый план.
             </p>
           )}
 
@@ -386,36 +381,14 @@ export default function PlanBuilder() {
       )}
 
       {plan && !email && (
+        // Гость план не видит: он сгенерирован и ждёт в localStorage, а на экране —
+        // только форма регистрации. Сам план откроется на /business/[id] сразу
+        // после регистрации (persistPlan в onDone) — вместе с предложением тарифов.
         <div className="print:hidden">
-          <div className="mb-8 rounded-xl border border-violet/30 bg-violet/5 p-5 md:p-6">
-            <p className="text-xs font-mono uppercase tracking-wide text-violet mb-2">{businessName}</p>
-            <p className="font-display text-lg md:text-xl text-ink-900">{plan.summary}</p>
-          </div>
-
-          <PlanColumn phase="foundation" entries={plan.foundation} />
-
-          <div className="relative mb-10 overflow-hidden rounded-2xl">
-            <div aria-hidden className="pointer-events-none select-none blur-sm">
-              <PlanColumn phase="traffic" entries={plan.traffic} />
-            </div>
-            <div className="absolute inset-0 flex items-end justify-center bg-gradient-to-b from-transparent via-white/75 to-white pb-6 pt-16">
-              <p className="max-w-xs text-center text-sm font-medium text-ink-900">
-                Дальше — этап «Трафик» и ещё один этап плана ↓
-              </p>
-            </div>
-          </div>
-
-          <GuestReadinessTeaser plan={plan} />
-
-          {(() => {
-            const c = findCaseForBusinessType(raw.businessType);
-            return c ? <NicheCaseCallout c={c} /> : null;
-          })()}
-
           <AuthGate
             badge="План готов"
-            title="Сохраните план — это займёт 30 секунд"
-            subtitle="Зарегистрируйтесь, чтобы открыть план целиком и вернуться к нему в любой момент из личного кабинета."
+            title="Ваш план готов — осталось зарегистрироваться"
+            subtitle="Создайте аккаунт, и мы сразу покажем план целиком. Он сохранится в личном кабинете — к нему можно вернуться в любой момент."
             onDone={() =>
               persistPlan(
                 plan,

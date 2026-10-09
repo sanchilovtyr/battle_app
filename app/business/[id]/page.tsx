@@ -22,6 +22,7 @@ import GrowthPoints, { LockedGrowthPoints } from "@/components/GrowthPoints";
 import ActivityStatusBadge from "@/components/ActivityStatusBadge";
 import PhaseBadges from "@/components/PhaseBadges";
 import LockedPhaseCard from "@/components/LockedPhaseCard";
+import UpgradeOffer from "@/components/UpgradeOffer";
 
 function formatDate(iso: string) {
   try {
@@ -241,6 +242,9 @@ export default function BusinessPage({ params }: { params: { id: string } }) {
             <LockedPhaseCard />
           )}
         </div>
+
+        {/* Предложение расширить тариф — сразу после плана (не показывается на высшем тарифе) */}
+        <UpgradeOffer currentPlanId={effectivePlanId} />
 
         {/* 3. Где вы теряете клиентов */}
         <div className="mt-8">

@@ -160,7 +160,7 @@ export async function generatePlanPdf(
     cursor = ensureSpace(cursor, 40);
     cursor = drawParagraph(
       cursor,
-      "Этап 3 «Удержание и повторные продажи» доступен на тарифах «Бизнес» и «Команда».",
+      "Этап 3 «Удержание и повторные продажи» доступен на тарифах «Бизнес» и «Премиум».",
       { font: regular, size: 10, color: VIOLET, gapAfter: 0 }
     );
   }

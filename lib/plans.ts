@@ -87,7 +87,7 @@ export const PLANS: PricingPlan[] = [
   },
   {
     id: "agency",
-    name: "Команда",
+    name: "Премиум",
     price: "6 990 ₽",
     period: "/мес",
     description: "Для нескольких точек/филиалов или агентства с подрядчиком",

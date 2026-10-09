@@ -165,10 +165,10 @@ export function VectorLockedTeaser() {
       <h3 className="font-display text-lg text-ink-900 mb-1.5">Вектор аудитории</h3>
       <p className="mx-auto mb-4 max-w-md text-sm text-muted">
         Короткий квиз определяет психологический профиль вашей аудитории: главную боль, мечту,
-        тон коммуникации и даёт рекомендации по рекламе. Доступно на тарифах «Бизнес» и «Команда».
+        тон коммуникации и даёт рекомендации по рекламе. Доступно на тарифах «Бизнес» и «Премиум».
       </p>
       <a
-        href="#pricing"
+        href="#upgrade"
         className="inline-block rounded-full bg-ink-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-ink-800"
       >
         Посмотреть тарифы

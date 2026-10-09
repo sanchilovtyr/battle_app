@@ -42,7 +42,7 @@ export async function POST(req: Request) {
 
   if (!effectivePlan.pdfExportAccess) {
     return NextResponse.json(
-      { error: "Отправка PDF на почту доступна на тарифе «Команда»" },
+      { error: "Отправка PDF на почту доступна на тарифе «Премиум»" },
       { status: 403 }
     );
   }

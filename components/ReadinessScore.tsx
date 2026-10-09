@@ -13,6 +13,7 @@ interface ReadinessScoreProps {
   checklist: ChecklistState;
   checklistAccess: boolean;
   vectorId?: VectorId | null;
+  vectorAccess: boolean;
   snapshots: FunnelSnapshot[];
 }
 
@@ -32,6 +33,7 @@ export default function ReadinessScore({
   checklist,
   checklistAccess,
   vectorId,
+  vectorAccess,
   snapshots,
 }: ReadinessScoreProps) {
   const [metrikaConnected, setMetrikaConnected] = useState(false);
@@ -55,6 +57,7 @@ export default function ReadinessScore({
     checklist,
     checklistAccess,
     vectorId,
+    vectorAccess,
     snapshots,
     metrikaConnected,
   });

@@ -249,6 +249,7 @@ export default function AccountPage() {
           <RenewalRecap
             businesses={businesses}
             checklistAccess={effectivePlan.checklistAccess}
+            vectorAccess={effectivePlan.audienceVectorAccess}
             daysLeft={daysUntilRenewal!}
             renewDate={formatDate(subscription.currentPeriodEnd)}
           />

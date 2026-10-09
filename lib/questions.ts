@@ -27,22 +27,6 @@ export const QUESTIONS: Question[] = [
     ],
   },
   {
-    id: "hasSite",
-    title: "У вас есть сайт или лендинг?",
-    options: [
-      { value: "true", label: "Да, есть" },
-      { value: "false", label: "Нет, ещё не сделали" },
-    ],
-  },
-  {
-    id: "hasSocial",
-    title: "Ведёте соцсети или Telegram-канал?",
-    options: [
-      { value: "true", label: "Да, ведём регулярно" },
-      { value: "false", label: "Нет или заброшены" },
-    ],
-  },
-  {
     id: "goal",
     title: "Какая цель сейчас важнее всего?",
     options: [
@@ -70,15 +54,6 @@ export const QUESTIONS: Question[] = [
       { value: "local", label: "Один город / район" },
       { value: "regional", label: "Регион / несколько городов" },
       { value: "national", label: "Вся Россия" },
-    ],
-  },
-  {
-    id: "experience",
-    title: "Насколько вы опытны в интернет-продвижении?",
-    options: [
-      { value: "beginner", label: "Новичок, делаю первые шаги" },
-      { value: "middle", label: "Средний уровень, что-то уже пробовал" },
-      { value: "advanced", label: "Продвинутый, нужна точная приоритизация" },
     ],
   },
 ];

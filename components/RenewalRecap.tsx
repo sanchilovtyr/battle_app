@@ -6,6 +6,7 @@ import { computeReadiness } from "@/lib/readiness";
 interface RenewalRecapProps {
   businesses: Business[];
   checklistAccess: boolean;
+  vectorAccess: boolean;
   daysLeft: number;
   renewDate: string;
 }
@@ -15,7 +16,7 @@ interface RenewalRecapProps {
  *  ценность подписки в момент, когда человек решает, продлевать её или нет —
  *  а не когда решение уже принято. Считается на клиенте из тех же локальных
  *  данных, что и остальные карточки прогресса. */
-export default function RenewalRecap({ businesses, checklistAccess, daysLeft, renewDate }: RenewalRecapProps) {
+export default function RenewalRecap({ businesses, checklistAccess, vectorAccess, daysLeft, renewDate }: RenewalRecapProps) {
   const withPlan = businesses.filter((b) => b.plan);
   if (withPlan.length === 0) return null;
 
@@ -25,6 +26,7 @@ export default function RenewalRecap({ businesses, checklistAccess, daysLeft, re
       checklist: getChecklist(b.id),
       checklistAccess,
       vectorId: b.vectorId,
+      vectorAccess,
       snapshots: getSnapshots(b.id),
       metrikaConnected: false, // упрощение для этой сводки — точный статус смотрите в карточке бизнеса
     })

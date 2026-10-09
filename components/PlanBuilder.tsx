@@ -5,8 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import AuthGate from "@/components/AuthGate";
-import { VectorQuiz, VectorLockedTeaser } from "@/components/VectorSection";
-import { VectorId } from "@/lib/vectors";
 import PlanColumn from "@/components/PlanColumn";
 import { QUESTIONS } from "@/lib/questions";
 import { Answers, GeneratedPlan } from "@/lib/types";
@@ -26,12 +24,9 @@ type RawAnswers = Record<string, string>;
 // Честно: план правда собирается из этих ответов, ничего не выдумываем.
 const WIZARD_BLOCK_LABELS: Record<string, string> = {
   businessType: "Ниша",
-  hasSite: "Сайт",
-  hasSocial: "Соцсети",
   goal: "Цель",
   budget: "Бюджет",
   geo: "География",
-  experience: "Опыт",
 };
 
 // Что именно определит текущий вопрос — показываем перед ответом, чтобы
@@ -39,23 +34,17 @@ const WIZARD_BLOCK_LABELS: Record<string, string> = {
 // итоговый план.
 const WIZARD_BLOCK_HINTS: Record<string, string> = {
   businessType: "Подберём кейсы и форматы под вашу нишу",
-  hasSite: "Учтём в разделе «Фундамент» — нужен ли лендинг",
-  hasSocial: "Повлияет на каналы в разделе «Трафик»",
   goal: "Определит акцент всего плана",
   budget: "Подберём каналы, которые впишутся в бюджет",
   geo: "Учтём в выборе гео-таргетинга и площадок",
-  experience: "Настроим глубину шагов под ваш опыт",
 };
 
 function toAnswers(raw: RawAnswers): Answers {
   return {
     businessType: raw.businessType as Answers["businessType"],
-    hasSite: raw.hasSite === "true",
-    hasSocial: raw.hasSocial === "true",
     goal: raw.goal as Answers["goal"],
     budget: raw.budget as Answers["budget"],
     geo: raw.geo as Answers["geo"],
-    experience: raw.experience as Answers["experience"],
   };
 }
 
@@ -138,7 +127,6 @@ export default function PlanBuilder() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
 
   const [businessName, setBusinessName] = useState<string | null>(null);
-  const [vectorId, setVectorId] = useState<VectorId | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [raw, setRaw] = useState<RawAnswers>({});
   const [plan, setPlan] = useState<GeneratedPlan | null>(null);
@@ -163,7 +151,6 @@ export default function PlanBuilder() {
     setBusinesses([]);
     setEffectivePlanId("trial");
     setBusinessName(null);
-    setVectorId(null);
     setRaw({});
     setStepIndex(0);
     setPlan(null);
@@ -190,49 +177,39 @@ export default function PlanBuilder() {
   const persistPlan = (
     planToSave: GeneratedPlan,
     name: string,
-    businessTypeLabel: string,
-    vectorIdToSave?: VectorId
+    businessTypeLabel: string
   ) => {
     const saved = addBusiness({
       name: name || "Мой бизнес",
       businessType: businessTypeLabel,
       plan: planToSave,
-      vectorId: vectorIdToSave,
     });
     clearPendingGuestPlan();
     router.push(`/business/${saved.id}`);
   };
 
-  // Вектор аудитории определяется до генерации плана — на этом этапе бизнес
-  // ещё не сохранён, поэтому просто держим значение в состоянии.
-  const handleVectorComplete = (id: VectorId) => {
-    setVectorId(id);
-  };
-
   // Пока бизнес показан гостю (ещё не зарегистрировался), держим его прогресс
   // в localStorage — иначе вход через Яндекс ID (уводит с сайта и возвращает
   // на новую загрузку страницы) или случайное обновление страницы стёрли бы
-  // определённый вектор и/или готовый план.
+  // готовый план.
   useEffect(() => {
-    if (!email && businessName && (vectorId || plan)) {
+    if (!email && businessName && plan) {
       savePendingGuestPlan({
         businessName,
-        vectorId: vectorId ?? undefined,
         businessType: raw.businessType ? BUSINESS_TYPE_LABELS[raw.businessType] ?? raw.businessType : undefined,
         plan: plan ?? undefined,
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [businessName, vectorId, plan, email]);
+  }, [businessName, plan, email]);
 
   // Гость обновил страницу, ещё не зарегистрировавшись — восстанавливаем имя
-  // бизнеса, определённый вектор и (если уже дошёл) сам план.
+  // бизнеса и (если уже дошёл) сам план.
   useEffect(() => {
     if (status !== "unauthenticated" || businessName !== null) return;
     const pending = loadPendingGuestPlan();
     if (!pending) return;
     setBusinessName(pending.businessName);
-    if (pending.vectorId) setVectorId(pending.vectorId);
     if (pending.plan) setPlan(pending.plan);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
@@ -245,9 +222,8 @@ export default function PlanBuilder() {
     const pending = loadPendingGuestPlan();
     if (!pending || !pending.plan) return;
     setBusinessName(pending.businessName);
-    if (pending.vectorId) setVectorId(pending.vectorId);
     setPlan(pending.plan);
-    persistPlan(pending.plan, pending.businessName, pending.businessType ?? "", pending.vectorId);
+    persistPlan(pending.plan, pending.businessName, pending.businessType ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, plan]);
 
@@ -276,8 +252,7 @@ export default function PlanBuilder() {
           persistPlan(
             data.plan as GeneratedPlan,
             businessName || "Мой бизнес",
-            BUSINESS_TYPE_LABELS[next.businessType] ?? next.businessType,
-            vectorId ?? undefined
+            BUSINESS_TYPE_LABELS[next.businessType] ?? next.businessType
           );
         }
       } catch {
@@ -332,86 +307,80 @@ export default function PlanBuilder() {
             </p>
           )}
 
-          {vectorId === null ? (
-            <VectorQuiz onComplete={handleVectorComplete} />
-          ) : (
-            <>
-              <div className="mb-3 flex items-center gap-3">
-                <span className="font-mono text-xs text-muted">
-                  {String(stepIndex + 1).padStart(2, "0")} / {String(QUESTIONS.length).padStart(2, "0")}
-                </span>
-                <div className="h-1 flex-1 rounded-full bg-line">
-                  <div
-                    className="h-1 rounded-full bg-violet transition-all"
-                    style={{ width: `${Math.max(progress, 6)}%` }}
-                  />
-                </div>
-              </div>
+          <div className="mb-3 flex items-center gap-3">
+            <span className="font-mono text-xs text-muted">
+              {String(stepIndex + 1).padStart(2, "0")} / {String(QUESTIONS.length).padStart(2, "0")}
+            </span>
+            <div className="h-1 flex-1 rounded-full bg-line">
+              <div
+                className="h-1 rounded-full bg-violet transition-all"
+                style={{ width: `${Math.max(progress, 6)}%` }}
+              />
+            </div>
+          </div>
 
-              <div className="mb-5 flex flex-wrap gap-1.5">
-                {QUESTIONS.map((q, i) => {
-                  const answered = raw[q.id] !== undefined;
-                  const active = i === stepIndex;
-                  return (
-                    <span
-                      key={q.id}
-                      className={
-                        "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors " +
-                        (answered
-                          ? "bg-violet text-white"
-                          : active
-                          ? "bg-violet-soft text-violet"
-                          : "bg-soft text-ink-900/30")
-                      }
-                    >
-                      {answered ? "✓ " : ""}
-                      {WIZARD_BLOCK_LABELS[q.id] ?? q.id}
-                    </span>
-                  );
-                })}
-              </div>
-
-              <h2 className="font-display text-2xl md:text-3xl text-ink-900 mb-1">{question.title}</h2>
-              {question.subtitle && <p className="text-muted mb-2">{question.subtitle}</p>}
-              {WIZARD_BLOCK_HINTS[question.id] && (
-                <p className="mb-6 text-xs text-violet">→ {WIZARD_BLOCK_HINTS[question.id]}</p>
-              )}
-              {!question.subtitle && !WIZARD_BLOCK_HINTS[question.id] && <div className="mb-6" />}
-
-              <div className="grid gap-3">
-                {question.options.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => selectOption(opt.value)}
-                    disabled={generating}
-                    className={`text-left rounded-xl border p-4 transition-colors hover:border-violet hover:bg-violet/5 disabled:cursor-not-allowed disabled:opacity-50 ${
-                      answeredValue === opt.value
-                        ? "border-violet bg-violet/10"
-                        : "border-line bg-white/50"
-                    }`}
-                  >
-                    <span className="block font-medium text-ink-900">{opt.label}</span>
-                    {opt.hint && <span className="block text-sm text-muted mt-0.5">{opt.hint}</span>}
-                  </button>
-                ))}
-              </div>
-
-              {generating && (
-                <p className="mt-4 text-sm text-violet">Собираем ваш план…</p>
-              )}
-              {generateError && (
-                <p className="mt-4 text-sm text-red-600">{generateError}</p>
-              )}
-
-              {stepIndex > 0 && (
-                <button
-                  onClick={goBack}
-                  className="mt-6 text-sm text-muted hover:text-ink-900 underline underline-offset-4"
+          <div className="mb-5 flex flex-wrap gap-1.5">
+            {QUESTIONS.map((q, i) => {
+              const answered = raw[q.id] !== undefined;
+              const active = i === stepIndex;
+              return (
+                <span
+                  key={q.id}
+                  className={
+                    "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors " +
+                    (answered
+                      ? "bg-violet text-white"
+                      : active
+                      ? "bg-violet-soft text-violet"
+                      : "bg-soft text-ink-900/30")
+                  }
                 >
-                  ← Назад
-                </button>
-              )}
-            </>
+                  {answered ? "✓ " : ""}
+                  {WIZARD_BLOCK_LABELS[q.id] ?? q.id}
+                </span>
+              );
+            })}
+          </div>
+
+          <h2 className="font-display text-2xl md:text-3xl text-ink-900 mb-1">{question.title}</h2>
+          {question.subtitle && <p className="text-muted mb-2">{question.subtitle}</p>}
+          {WIZARD_BLOCK_HINTS[question.id] && (
+            <p className="mb-6 text-xs text-violet">→ {WIZARD_BLOCK_HINTS[question.id]}</p>
+          )}
+          {!question.subtitle && !WIZARD_BLOCK_HINTS[question.id] && <div className="mb-6" />}
+
+          <div className="grid gap-3">
+            {question.options.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => selectOption(opt.value)}
+                disabled={generating}
+                className={`text-left rounded-xl border p-4 transition-colors hover:border-violet hover:bg-violet/5 disabled:cursor-not-allowed disabled:opacity-50 ${
+                  answeredValue === opt.value
+                    ? "border-violet bg-violet/10"
+                    : "border-line bg-white/50"
+                }`}
+              >
+                <span className="block font-medium text-ink-900">{opt.label}</span>
+                {opt.hint && <span className="block text-sm text-muted mt-0.5">{opt.hint}</span>}
+              </button>
+            ))}
+          </div>
+
+          {generating && (
+            <p className="mt-4 text-sm text-violet">Собираем ваш план…</p>
+          )}
+          {generateError && (
+            <p className="mt-4 text-sm text-red-600">{generateError}</p>
+          )}
+
+          {stepIndex > 0 && (
+            <button
+              onClick={goBack}
+              className="mt-6 text-sm text-muted hover:text-ink-900 underline underline-offset-4"
+            >
+              ← Назад
+            </button>
           )}
         </div>
       )}
@@ -436,9 +405,7 @@ export default function PlanBuilder() {
             </div>
           </div>
 
-          {vectorId && <VectorLockedTeaser />}
-
-          <GuestReadinessTeaser plan={plan} vectorId={vectorId} />
+          <GuestReadinessTeaser plan={plan} />
 
           {(() => {
             const c = findCaseForBusinessType(raw.businessType);
@@ -453,8 +420,7 @@ export default function PlanBuilder() {
               persistPlan(
                 plan,
                 businessName || "Мой бизнес",
-                BUSINESS_TYPE_LABELS[raw.businessType] ?? raw.businessType,
-                vectorId ?? undefined
+                BUSINESS_TYPE_LABELS[raw.businessType] ?? raw.businessType
               )
             }
           />

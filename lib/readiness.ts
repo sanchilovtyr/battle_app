@@ -13,6 +13,8 @@ export interface ReadinessInput {
   checklist: ChecklistState;
   checklistAccess: boolean;
   vectorId?: VectorId | null;
+  /** Есть ли у тарифа определение вектора аудитории. На остальных тарифах пункт не считается. По умолчанию true. */
+  vectorAccess?: boolean;
   snapshots: FunnelSnapshot[];
   metrikaConnected: boolean;
 }
@@ -42,7 +44,10 @@ export function readinessLevel(pct: number): string {
 }
 
 export function computeReadiness(input: ReadinessInput): ReadinessResult {
-  const items: ReadinessItem[] = [{ label: "Вектор аудитории определён", done: Boolean(input.vectorId) }];
+  const items: ReadinessItem[] =
+    input.vectorAccess === false
+      ? []
+      : [{ label: "Вектор аудитории определён", done: Boolean(input.vectorId) }];
 
   if (input.checklistAccess) {
     const progress = planProgress(input.checklist, input.plan);

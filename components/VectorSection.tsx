@@ -4,15 +4,13 @@ import { useEffect, useState } from "react";
 import { VECTOR_QUESTIONS, determineVector, getVector, VectorId, VectorProfile } from "@/lib/vectors";
 import { applyVectorOverride, VectorOverrideData } from "@/lib/adminVectors";
 
-// Вектор аудитории теперь определяется один раз, в самом начале (до вопросов
-// о бизнесе — см. PlanBuilder), и хранится вместе с бизнесом. Этот файл
-// разделён на три части:
-//  - VectorQuiz — сам мини-квиз (проходят все, независимо от тарифа);
-//  - VectorResultCard — полная расшифровка результата (только на тарифах
-//    с audienceVectorAccess);
-//  - VectorLockedTeaser — сообщение "вектор определён, но расшифровка
-//    доступна на платных тарифах" (в т.ч. для гостей, которые ещё не
-//    зарегистрировались — им расшифровка не показывается никогда).
+// Вектор аудитории определяется на странице бизнеса (/business/[id]) и только
+// на тарифах с audienceVectorAccess; в первую анкету он не входит. Результат
+// хранится вместе с бизнесом. Этот файл разделён на три части:
+//  - VectorQuiz — сам мини-квиз (показывается только на тарифах с доступом);
+//  - VectorResultCard — полная расшифровка результата;
+//  - VectorLockedTeaser — приглашение для остальных тарифов: что даёт вектор
+//    и где он открывается.
 
 interface VectorQuizProps {
   onComplete: (vectorId: VectorId) => void;
@@ -164,11 +162,10 @@ export function VectorLockedTeaser() {
       <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-ink-900 text-brand">
         🔒
       </div>
-      <h3 className="font-display text-lg text-ink-900 mb-1.5">Вектор аудитории определён</h3>
+      <h3 className="font-display text-lg text-ink-900 mb-1.5">Вектор аудитории</h3>
       <p className="mx-auto mb-4 max-w-md text-sm text-muted">
-        Мы уже вычислили психологический профиль вашей аудитории по ответам в начале анкеты.
-        Расшифровка — главная боль, мечта, тон коммуникации и рекомендации по рекламе — открывается
-        на тарифах «Бизнес» и «Команда».
+        Короткий квиз определяет психологический профиль вашей аудитории: главную боль, мечту,
+        тон коммуникации и даёт рекомендации по рекламе. Доступно на тарифах «Бизнес» и «Команда».
       </p>
       <a
         href="#pricing"

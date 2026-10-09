@@ -15,12 +15,12 @@ function isValidAnswers(a: unknown): a is Answers {
   const x = a as Record<string, unknown>;
   return (
     BUSINESS_TYPES.includes(x.businessType as string) &&
-    typeof x.hasSite === "boolean" &&
-    typeof x.hasSocial === "boolean" &&
+    (x.hasSite === undefined || typeof x.hasSite === "boolean") &&
+    (x.hasSocial === undefined || typeof x.hasSocial === "boolean") &&
     GOALS.includes(x.goal as string) &&
     BUDGETS.includes(x.budget as string) &&
     GEOS.includes(x.geo as string) &&
-    EXPERIENCES.includes(x.experience as string)
+    (x.experience === undefined || EXPERIENCES.includes(x.experience as string))
   );
 }
 

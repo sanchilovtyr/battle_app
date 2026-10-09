@@ -15,8 +15,8 @@ const KEY = "promoplan_pending_guest_plan";
 
 export interface PendingGuestPlan {
   businessName: string;
-  // Вектор определяется раньше, чем план (см. PlanBuilder) — поэтому может
-  // быть известен, даже если businessType/plan ещё нет.
+  // Устарело: раньше вектор определялся в первой анкете. Поле оставлено только
+  // для чтения старых сохранений в localStorage, новые записи его не содержат.
   vectorId?: VectorId;
   businessType?: string;
   plan?: GeneratedPlan;

@@ -1,10 +1,8 @@
 import { GeneratedPlan } from "@/lib/types";
-import { VectorId } from "@/lib/vectors";
 import { computeReadiness } from "@/lib/readiness";
 
 interface GuestReadinessTeaserProps {
   plan: GeneratedPlan;
-  vectorId?: VectorId | null;
 }
 
 const LOCKED_FEATURES = [
@@ -18,12 +16,12 @@ const LOCKED_FEATURES = [
  *  для гостя — до регистрации. Показывает честный процент (обычно невысокий,
  *  без чек-листа и данных) и явно запертые бейджи того, что откроется дальше
  *  — вместо того, чтобы прогресс был виден только после регистрации. */
-export default function GuestReadinessTeaser({ plan, vectorId }: GuestReadinessTeaserProps) {
+export default function GuestReadinessTeaser({ plan }: GuestReadinessTeaserProps) {
   const { pct, level } = computeReadiness({
     plan,
     checklist: {},
     checklistAccess: false,
-    vectorId,
+    vectorAccess: false,
     snapshots: [],
     metrikaConnected: false,
   });

@@ -30,7 +30,7 @@ export default function Home() {
               Хватит блуждать в маркетинге — вот ваш маршрут к клиентам
             </h1>
             <p className="mb-7 max-w-[570px] text-base text-white/65 sm:text-lg">
-              Отвечаете на 7 вопросов о своём бизнесе — получаете подписку на пошаговый план
+              Отвечаете на 4 вопроса о своём бизнесе — получаете подписку на пошаговый план
               привлечения клиентов: что делать сначала, что потом и почему именно так. Без общих
               советов «продвигайтесь в соцсетях».
             </p>
@@ -42,7 +42,7 @@ export default function Home() {
             </a>
             <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-[13px] text-white/70">
               <span className="before:mr-1.5 before:text-brand before:content-['✦']">
-                7 вопросов — около 3 минут
+                4 вопроса — около 3 минут
               </span>
               <span className="before:mr-1.5 before:text-brand before:content-['✦']">
                 Без карты и звонка

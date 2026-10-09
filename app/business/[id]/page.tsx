@@ -191,19 +191,16 @@ export default function BusinessPage({ params }: { params: { id: string } }) {
         </div>
 
         {/* 1. Вектор клиента */}
-        {business.vectorId && !retakingVector && (
-          planMeta.audienceVectorAccess ? (
-            <VectorResultCard vectorId={business.vectorId} onRetake={() => setRetakingVector(true)} />
-          ) : (
-            <VectorLockedTeaser />
-          )
+        {!planMeta.audienceVectorAccess && <VectorLockedTeaser />}
+        {planMeta.audienceVectorAccess && business.vectorId && !retakingVector && (
+          <VectorResultCard vectorId={business.vectorId} onRetake={() => setRetakingVector(true)} />
         )}
-        {!business.vectorId && !retakingVector && (
+        {planMeta.audienceVectorAccess && !business.vectorId && !retakingVector && (
           <div className="print:hidden rounded-2xl border border-dashed border-ink-900/20 bg-soft p-6 text-center">
             <h3 className="font-display text-lg text-ink-900 mb-1.5">Вектор аудитории</h3>
             <p className="mx-auto mb-4 max-w-md text-sm text-muted">
-              Этот бизнес создан до того, как вектор аудитории стали определять вместе с планом.
-              Пройдите короткий квиз, чтобы определить его и для этого бизнеса.
+              Короткий квиз из нескольких вопросов покажет психологический профиль вашей аудитории:
+              главную боль, мечту, тон общения и рекомендации по рекламе.
             </p>
             <button
               onClick={() => setRetakingVector(true)}
@@ -213,7 +210,7 @@ export default function BusinessPage({ params }: { params: { id: string } }) {
             </button>
           </div>
         )}
-        {retakingVector && (
+        {planMeta.audienceVectorAccess && retakingVector && (
           <div className="print:hidden">
             <VectorQuiz onComplete={handleVectorComplete} />
           </div>
@@ -289,6 +286,7 @@ export default function BusinessPage({ params }: { params: { id: string } }) {
             checklist={checklist}
             checklistAccess={planMeta.checklistAccess}
             vectorId={business.vectorId}
+            vectorAccess={planMeta.audienceVectorAccess}
             snapshots={snapshots}
           />
         </div>

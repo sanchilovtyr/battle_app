@@ -429,7 +429,7 @@ export default function AccountPage() {
                   {b.plan && effectivePlan.checklistAccess && (
                     <Link
                       href={`/business/${b.id}/dashboard`}
-                      className="text-sm font-medium text-violet underline underline-offset-4 hover:text-ink-900"
+                      className="rounded-full bg-[#e6f7f0] px-3 py-1 text-sm font-semibold text-[#0f7a54] ring-1 ring-[#1baf7a]/50 hover:bg-[#d9f2e8]"
                     >
                       Дашборд
                     </Link>

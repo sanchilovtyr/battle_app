@@ -261,15 +261,15 @@ export default function BusinessPage({ params }: { params: { id: string } }) {
         {planMeta.checklistAccess && (
           <Link
             href={`/business/${business.id}/dashboard`}
-            className="print:hidden group mt-8 flex items-center justify-between gap-4 rounded-2xl border border-violet/30 bg-violet-soft p-5 transition hover:-translate-y-0.5 hover:border-violet hover:shadow-[0_14px_30px_rgba(118,88,246,0.15)]"
+            className="print:hidden group mt-8 flex items-center justify-between gap-4 rounded-2xl border-2 border-[#1baf7a] bg-[#e6f7f0] p-5 shadow-[0_8px_24px_rgba(27,175,122,0.18)] transition hover:-translate-y-0.5 hover:bg-[#d9f2e8] hover:shadow-[0_14px_30px_rgba(27,175,122,0.28)]"
           >
             <span>
               <span className="block font-display text-lg text-ink-900">Дашборд динамики</span>
-              <span className="mt-0.5 block text-sm text-muted">
+              <span className="mt-0.5 block text-sm text-ink-900/70">
                 Графики по вашим показателям и выполнению плана: что растёт, а что стоит на месте.
               </span>
             </span>
-            <span className="shrink-0 text-xl text-violet transition-transform group-hover:translate-x-1" aria-hidden>→</span>
+            <span className="shrink-0 text-2xl font-bold text-[#0f7a54] transition-transform group-hover:translate-x-1" aria-hidden>→</span>
           </Link>
         )}
 

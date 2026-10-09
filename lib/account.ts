@@ -4,8 +4,11 @@
 // см. README.
 
 import { GeneratedPlan } from "./types";
+import { VectorId } from "./vectors";
 import { clearChecklist } from "./checklist";
 import { clearFunnel } from "./funnel";
+import { clearProgressHistory } from "./progressHistory";
+import { markCreated, markDeleted, markDirty, wipeLocalBusinessData } from "./cloudSync";
 
 const EMAIL_KEY = "promoplan_email";
 const PROFILE_KEY = "promoplan_profile";
@@ -20,6 +23,12 @@ export interface Business {
   // Сам сгенерированный план — чтобы его можно было открыть повторно в личном
   // кабинете, а не только сразу после прохождения анкеты.
   plan?: GeneratedPlan;
+  // Вектор аудитории определяется на странице бизнеса и только на тарифах с
+  // audienceVectorAccess (в первую анкету не входит). Хранится вместе с
+  // бизнесом — чтобы не пропадал при обновлении страницы и не считался заново.
+  // У бизнесов, созданных раньше, когда квиз проходили все, значение может
+  // быть и на бесплатных тарифах — при апгрейде проходить заново не придётся.
+  vectorId?: VectorId;
 }
 
 function safeGet(key: string): string | null {
@@ -53,6 +62,8 @@ export function clearAccount() {
   safeRemove(PROFILE_KEY);
   safeRemove(SUBSCRIPTION_KEY);
   safeRemove(BUSINESSES_KEY);
+  // бизнесы и все внесённые данные лежат на сервере — из браузера убираем (кэш и очередь)
+  wipeLocalBusinessData();
 }
 
 export function getBusinesses(): Business[] {
@@ -73,6 +84,7 @@ export function addBusiness(entry: Omit<Business, "id" | "createdAt">): Business
   };
   const next = [...getBusinesses(), business];
   safeSet(BUSINESSES_KEY, JSON.stringify(next));
+  markCreated(business.id);
   return business;
 }
 
@@ -81,8 +93,18 @@ export function removeBusiness(id: string) {
   safeSet(BUSINESSES_KEY, JSON.stringify(next));
   clearChecklist(id);
   clearFunnel(id);
+  clearProgressHistory(id);
+  markDeleted(id);
 }
 
 export function getBusiness(id: string): Business | null {
   return getBusinesses().find((b) => b.id === id) ?? null;
+}
+
+/** Обновляет вектор аудитории уже сохранённого бизнеса (кнопка "Пройти заново"). */
+export function updateBusinessVector(businessId: string, vectorId: VectorId) {
+  const next = getBusinesses().map((b) => (b.id === businessId ? { ...b, vectorId } : b));
+  safeSet(BUSINESSES_KEY, JSON.stringify(next));
+  markDirty(businessId, ["vectorId"]);
+  return next;
 }

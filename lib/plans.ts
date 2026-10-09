@@ -19,6 +19,8 @@ export interface PricingPlan {
   pdfExportAccess: boolean;
   /** Доступны ли чек-листы выполнения и аналитика "где теряются клиенты" */
   checklistAccess: boolean;
+  /** Доступны ли "Точки роста" — сквозные рекомендации по чек-листу, воронке и Метрике */
+  growthPointsAccess: boolean;
 }
 
 export const PLANS: PricingPlan[] = [
@@ -29,9 +31,9 @@ export const PLANS: PricingPlan[] = [
     period: "разово",
     description: "Чтобы попробовать сервис и увидеть, как выглядит ваш план",
     features: [
-      "1 бизнес — один план (разово)",
-      "Ограниченный доступ к шагам этого плана",
-      "Без обновлений и сохранения истории",
+      "1 бизнес — один план",
+      "Открыты этапы «Фундамент» и «Трафик» (2 из 3)",
+      "Без чек-листов, аналитики и обновлений плана",
     ],
     free: true,
     businessLimit: 1,
@@ -39,6 +41,7 @@ export const PLANS: PricingPlan[] = [
     audienceVectorAccess: false,
     pdfExportAccess: false,
     checklistAccess: false,
+    growthPointsAccess: false,
   },
   {
     id: "start",
@@ -57,6 +60,7 @@ export const PLANS: PricingPlan[] = [
     audienceVectorAccess: false,
     pdfExportAccess: false,
     checklistAccess: false,
+    growthPointsAccess: false,
   },
   {
     id: "business",
@@ -70,7 +74,7 @@ export const PLANS: PricingPlan[] = [
       "Чек-листы с отметками о выполнении",
       "Аналитика: в каком моменте бизнес теряет клиентов",
       "Определение вектора аудитории и рекомендации по рекламе",
-      "Обновление плана каждую неделю",
+      "Регулярное обновление плана",
       "Техническая поддержка",
     ],
     highlighted: true,
@@ -79,10 +83,11 @@ export const PLANS: PricingPlan[] = [
     audienceVectorAccess: true,
     pdfExportAccess: false,
     checklistAccess: true,
+    growthPointsAccess: false,
   },
   {
     id: "agency",
-    name: "Команда",
+    name: "Премиум",
     price: "6 990 ₽",
     period: "/мес",
     description: "Для нескольких точек/филиалов или агентства с подрядчиком",
@@ -91,9 +96,10 @@ export const PLANS: PricingPlan[] = [
       "Всё из тарифа «Старт»",
       "Чек-листы с отметками о выполнении",
       "Аналитика: в каком моменте бизнес теряет клиентов",
+      "Точки роста: рекомендации на стыке чек-листа, воронки и Метрики",
       "Определение вектора аудитории и рекомендации по рекламе",
       "Экспорт плана в PDF",
-      "Обновление плана каждую неделю",
+      "Регулярное обновление плана",
       "Техническая поддержка",
     ],
     businessLimit: 5,
@@ -101,6 +107,7 @@ export const PLANS: PricingPlan[] = [
     audienceVectorAccess: true,
     pdfExportAccess: true,
     checklistAccess: true,
+    growthPointsAccess: true,
   },
 ];
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { generatePlanForAnswers } from "@/lib/planGenerator";
-import { checkRateLimit } from "@/lib/rateLimit";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 import { Answers } from "@/lib/types";
 
 const BUSINESS_TYPES = ["retail", "services", "horeca", "b2b", "online_edu", "ecommerce", "other"];
@@ -15,22 +15,25 @@ function isValidAnswers(a: unknown): a is Answers {
   const x = a as Record<string, unknown>;
   return (
     BUSINESS_TYPES.includes(x.businessType as string) &&
-    typeof x.hasSite === "boolean" &&
-    typeof x.hasSocial === "boolean" &&
+    (x.hasSite === undefined || typeof x.hasSite === "boolean") &&
+    (x.hasSocial === undefined || typeof x.hasSocial === "boolean") &&
     GOALS.includes(x.goal as string) &&
     BUDGETS.includes(x.budget as string) &&
     GEOS.includes(x.geo as string) &&
-    EXPERIENCES.includes(x.experience as string)
+    (x.experience === undefined || EXPERIENCES.includes(x.experience as string))
   );
 }
 
 export async function POST(req: Request) {
+  // Анкету и генерацию плана можно проходить без регистрации — она нужна
+  // только чтобы сохранить готовый план и открыть его целиком (см. лендинг).
+  // Поэтому лимитируем по пользователю, если он вошёл, и по IP — если нет,
+  // чтобы анонимный доступ нельзя было использовать для перебора/нагрузки.
   const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
-  }
+  const rateLimitKey = user ? `plan-generate:${user.id}` : `plan-generate-anon:${getClientIp(req)}`;
+  const rateLimitMax = user ? 20 : 8;
 
-  if (!checkRateLimit(`plan-generate:${user.id}`, 20, 10 * 60 * 1000)) {
+  if (!checkRateLimit(rateLimitKey, rateLimitMax, 10 * 60 * 1000)) {
     return NextResponse.json({ error: "Слишком много запросов подряд" }, { status: 429 });
   }
 

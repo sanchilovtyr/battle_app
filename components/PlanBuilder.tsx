@@ -1,256 +1,49 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useSession, signIn, signOut } from "next-auth/react";
-import VectorSection from "@/components/VectorSection";
-import PlanColumn, { PHASE_META } from "@/components/PlanColumn";
-import PlanAnalytics, { LockedAnalytics } from "@/components/PlanAnalytics";
+import { useSession, signOut } from "next-auth/react";
+import AuthGate from "@/components/AuthGate";
 import { QUESTIONS } from "@/lib/questions";
 import { Answers, GeneratedPlan } from "@/lib/types";
 import { getPlan, PlanId } from "@/lib/plans";
 import { computeEffectivePlanId } from "@/lib/subscriptionUtils";
 import { getBusinesses, addBusiness, clearAccount, Business } from "@/lib/account";
-import { ChecklistState, getChecklist, toggleStep } from "@/lib/checklist";
-import { FunnelSnapshot, getSnapshots } from "@/lib/funnel";
+import { useCloudSync } from "@/lib/useCloudSync";
+import { flushQueueBeforeLogout } from "@/lib/cloudSync";
+import { savePendingGuestPlan, loadPendingGuestPlan, clearPendingGuestPlan } from "@/lib/guestPlan";
+import { BUSINESS_TYPE_LABELS } from "@/lib/businessTypes";
 
 type RawAnswers = Record<string, string>;
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Короткие ярлыки блоков плана, которые собираются по мере ответов — вместо
+// абстрактного "3 из 7" показываем, какие конкретные части плана уже учтены.
+// Честно: план правда собирается из этих ответов, ничего не выдумываем.
+const WIZARD_BLOCK_LABELS: Record<string, string> = {
+  businessType: "Ниша",
+  goal: "Цель",
+  budget: "Бюджет",
+  geo: "География",
+};
 
-const BUSINESS_TYPE_LABELS: Record<string, string> = {
-  retail: "Розничная торговля",
-  services: "Услуги",
-  horeca: "Кафе, ресторан",
-  b2b: "B2B",
-  online_edu: "Онлайн-школа",
-  ecommerce: "Интернет-магазин",
-  other: "Другое",
+// Что именно определит текущий вопрос — показываем перед ответом, чтобы
+// решение об ответе ощущалось не как формальность, а как реальный вклад в
+// итоговый план.
+const WIZARD_BLOCK_HINTS: Record<string, string> = {
+  businessType: "Подберём кейсы и форматы под вашу нишу",
+  goal: "Определит акцент всего плана",
+  budget: "Подберём каналы, которые впишутся в бюджет",
+  geo: "Учтём в выборе гео-таргетинга и площадок",
 };
 
 function toAnswers(raw: RawAnswers): Answers {
   return {
     businessType: raw.businessType as Answers["businessType"],
-    hasSite: raw.hasSite === "true",
-    hasSocial: raw.hasSocial === "true",
     goal: raw.goal as Answers["goal"],
     budget: raw.budget as Answers["budget"],
     geo: raw.geo as Answers["geo"],
-    experience: raw.experience as Answers["experience"],
   };
-}
-
-function LockedVectorCard() {
-  return (
-    <div className="print:hidden mt-10 rounded-2xl border border-dashed border-ink-900/20 bg-soft p-6 text-center">
-      <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-ink-900 text-brand">
-        🔒
-      </div>
-      <h3 className="font-display text-lg text-ink-900 mb-1.5">Вектор аудитории</h3>
-      <p className="mx-auto mb-4 max-w-md text-sm text-muted">
-        На тарифах «Бизнес» и «Команда» доступен мини-квиз, который определяет психологический
-        профиль вашей аудитории и даёт рекомендации по тону и формату рекламы под него.
-      </p>
-      <a
-        href="#pricing"
-        className="inline-block rounded-full bg-ink-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-ink-800"
-      >
-        Посмотреть тарифы
-      </a>
-    </div>
-  );
-}
-
-
-function LockedPhaseCard() {
-  const meta = PHASE_META.retention;
-  return (
-    <div className="print:hidden mb-10 rounded-xl border border-dashed border-ink-900/20 bg-soft p-6 text-center">
-      <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-ink-900 text-brand">
-        🔒
-      </div>
-      <h3 className="font-display text-lg text-ink-900 mb-1.5">{meta.title}</h3>
-      <p className="mx-auto mb-4 max-w-md text-sm text-muted">
-        На пробном тарифе этот этап скрыт. Оформите платную подписку, чтобы открыть удержание
-        клиентов и повторные продажи — вместе с чек-листами и обновлениями плана.
-      </p>
-      <a
-        href="#pricing"
-        className="inline-block rounded-full bg-ink-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-ink-800"
-      >
-        Открыть все этапы
-      </a>
-    </div>
-  );
-}
-
-function AuthGate({ onDone }: { onDone: () => void }) {
-  const [mode, setMode] = useState<"login" | "register">("register");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [agreedOffer, setAgreedOffer] = useState(false);
-  const [agreedPd, setAgreedPd] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!EMAIL_RE.test(email.trim())) {
-      setError("Введите корректный email");
-      return;
-    }
-    if (password.length < 6) {
-      setError("Пароль должен быть не короче 6 символов");
-      return;
-    }
-    if (mode === "register" && (!agreedOffer || !agreedPd)) {
-      setError("Нужно отдельно принять оферту и дать согласие на обработку персональных данных");
-      return;
-    }
-    setError(null);
-    setSubmitting(true);
-
-    try {
-      if (mode === "register") {
-        const res = await fetch("/api/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: email.trim(), password }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          setError(data.error || "Не удалось зарегистрироваться");
-          setSubmitting(false);
-          return;
-        }
-      }
-
-      const result = await signIn("credentials", {
-        redirect: false,
-        email: email.trim(),
-        password,
-      });
-
-      if (result?.error) {
-        setError(
-          mode === "login" ? "Неверный email или пароль" : "Аккаунт создан, но не удалось войти — попробуйте войти вручную"
-        );
-        setSubmitting(false);
-        return;
-      }
-
-      onDone();
-    } catch {
-      setError("Что-то пошло не так, попробуйте ещё раз");
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="mx-auto max-w-md">
-      <span className="inline-block rounded-full bg-violet-soft px-3 py-1 text-xs font-bold text-violet">
-        Шаг 0 · 30 секунд
-      </span>
-      <h2 className="font-display text-2xl md:text-3xl text-ink-900 mt-4 mb-1.5">
-        {mode === "register" ? "Для начала — регистрация" : "С возвращением"}
-      </h2>
-      <p className="text-muted mb-5">
-        Понадобится для личного кабинета: там же можно управлять подпиской и скачивать планы.
-      </p>
-
-      <div className="mb-5 flex gap-2 rounded-full bg-soft p-1">
-        <button
-          type="button"
-          onClick={() => setMode("register")}
-          className={`flex-1 rounded-full py-2 text-sm font-medium transition-colors ${
-            mode === "register" ? "bg-white text-ink-900 shadow-sm" : "text-muted"
-          }`}
-        >
-          Регистрация
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("login")}
-          className={`flex-1 rounded-full py-2 text-sm font-medium transition-colors ${
-            mode === "login" ? "bg-white text-ink-900 shadow-sm" : "text-muted"
-          }`}
-        >
-          Вход
-        </button>
-      </div>
-
-      <form onSubmit={submit} className="grid gap-3">
-        <input
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@company.ru"
-          className="w-full rounded-xl border border-line bg-white p-4 text-ink-900 outline-none transition-colors focus:border-violet"
-        />
-        <input
-          type="password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Пароль, минимум 6 символов"
-          className="w-full rounded-xl border border-line bg-white p-4 text-ink-900 outline-none transition-colors focus:border-violet"
-        />
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <button
-          type="submit"
-          disabled={submitting || (mode === "register" && (!agreedOffer || !agreedPd))}
-          className="rounded-xl bg-brand px-5 py-4 text-sm font-extrabold text-ink-900 transition hover:-translate-y-0.5 hover:bg-brand/90 disabled:opacity-50 disabled:hover:translate-y-0"
-        >
-          {submitting
-            ? "Подождите…"
-            : mode === "register"
-            ? "Зарегистрироваться и продолжить"
-            : "Войти"}
-        </button>
-        {mode === "login" && (
-          <Link
-            href="/forgot-password"
-            className="text-sm text-muted underline underline-offset-4 hover:text-ink-900"
-          >
-            Забыли пароль?
-          </Link>
-        )}
-        {mode === "register" && (
-          <div className="grid gap-2">
-            <label className="flex items-start gap-2 text-xs text-muted">
-              <input
-                type="checkbox"
-                checked={agreedOffer}
-                onChange={(e) => setAgreedOffer(e.target.checked)}
-                className="mt-0.5 shrink-0"
-              />
-              <span>
-                Согласен(на) с условиями{" "}
-                <Link href="/oferta" target="_blank" className="underline underline-offset-4">
-                  договора оферты
-                </Link>
-              </span>
-            </label>
-            <label className="flex items-start gap-2 text-xs text-muted">
-              <input
-                type="checkbox"
-                checked={agreedPd}
-                onChange={(e) => setAgreedPd(e.target.checked)}
-                className="mt-0.5 shrink-0"
-              />
-              <span>
-                Даю согласие на обработку персональных данных на условиях{" "}
-                <Link href="/privacy" target="_blank" className="underline underline-offset-4">
-                  политики обработки персональных данных
-                </Link>
-              </span>
-            </label>
-          </div>
-        )}
-      </form>
-    </div>
-  );
 }
 
 function BusinessNameGate({ onSubmit }: { onSubmit: (name: string) => void }) {
@@ -323,10 +116,12 @@ function LimitReached({ planId, limit }: { planId: PlanId; limit: number }) {
 }
 
 export default function PlanBuilder() {
+  const router = useRouter();
   const { data: session, status } = useSession();
   const email = session?.user?.email ?? null;
 
   const [subLoaded, setSubLoaded] = useState(false);
+  const { ready: cloudReady, tick: cloudTick } = useCloudSync();
   const [effectivePlanId, setEffectivePlanId] = useState<PlanId>("trial");
   const [businesses, setBusinesses] = useState<Business[]>([]);
 
@@ -334,16 +129,13 @@ export default function PlanBuilder() {
   const [stepIndex, setStepIndex] = useState(0);
   const [raw, setRaw] = useState<RawAnswers>({});
   const [plan, setPlan] = useState<GeneratedPlan | null>(null);
-  const [planBusinessId, setPlanBusinessId] = useState<string | null>(null);
-  const [checklist, setChecklist] = useState<ChecklistState>({});
-  const [snapshots, setSnapshots] = useState<FunnelSnapshot[]>([]);
-  const [pdfNotice, setPdfNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (status !== "authenticated") {
       if (status === "unauthenticated") setSubLoaded(true);
       return;
     }
+    if (!cloudReady) return; // ждём, пока подтянутся бизнесы с сервера (иначе в новом браузере лимит посчитается по пустому списку)
     setBusinesses(getBusinesses());
     fetch("/api/me")
       .then((res) => (res.ok ? res.json() : null))
@@ -352,9 +144,10 @@ export default function PlanBuilder() {
         setSubLoaded(true);
       })
       .catch(() => setSubLoaded(true));
-  }, [status]);
+  }, [status, cloudReady, cloudTick]);
 
-  const logOut = () => {
+  const logOut = async () => {
+    await flushQueueBeforeLogout();
     clearAccount();
     setBusinesses([]);
     setEffectivePlanId("trial");
@@ -362,9 +155,6 @@ export default function PlanBuilder() {
     setRaw({});
     setStepIndex(0);
     setPlan(null);
-    setPlanBusinessId(null);
-    setChecklist({});
-    setSnapshots([]);
     signOut({ redirect: false });
   };
 
@@ -377,6 +167,66 @@ export default function PlanBuilder() {
 
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+
+  // Сохраняет сгенерированный план в личный кабинет (localStorage) и сразу
+  // уводит на его отдельную страницу — /business/[id] уже умеет показывать
+  // всё (чек-лист, аналитику, точки роста, PDF), дублировать это прямо в
+  // анкете на лендинге больше не нужно. Вызывается сразу после генерации,
+  // если пользователь уже вошёл, либо позже — сразу после регистрации
+  // (кнопкой или через Яндекс ID), если план сначала показали гостю (см.
+  // рендер ниже и восстановление после OAuth-редиректа).
+  const persistPlan = (
+    planToSave: GeneratedPlan,
+    name: string,
+    businessTypeLabel: string
+  ) => {
+    const saved = addBusiness({
+      name: name || "Мой бизнес",
+      businessType: businessTypeLabel,
+      plan: planToSave,
+    });
+    clearPendingGuestPlan();
+    router.push(`/business/${saved.id}`);
+  };
+
+  // Пока бизнес показан гостю (ещё не зарегистрировался), держим его прогресс
+  // в localStorage — иначе вход через Яндекс ID (уводит с сайта и возвращает
+  // на новую загрузку страницы) или случайное обновление страницы стёрли бы
+  // готовый план.
+  useEffect(() => {
+    if (!email && businessName && plan) {
+      savePendingGuestPlan({
+        businessName,
+        businessType: raw.businessType ? BUSINESS_TYPE_LABELS[raw.businessType] ?? raw.businessType : undefined,
+        plan: plan ?? undefined,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessName, plan, email]);
+
+  // Гость обновил страницу, ещё не зарегистрировавшись — восстанавливаем имя
+  // бизнеса и (если уже дошёл) сам план.
+  useEffect(() => {
+    if (status !== "unauthenticated" || businessName !== null) return;
+    const pending = loadPendingGuestPlan();
+    if (!pending) return;
+    setBusinessName(pending.businessName);
+    if (pending.plan) setPlan(pending.plan);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
+  // Если пользователь вошёл (в том числе вернувшись из OAuth Яндекса), а на
+  // экране ещё нет плана — проверяем, не остался ли не сохранённый гостевой
+  // план, и сразу сохраняем его в аккаунт.
+  useEffect(() => {
+    if (status !== "authenticated" || plan) return;
+    const pending = loadPendingGuestPlan();
+    if (!pending || !pending.plan) return;
+    setBusinessName(pending.businessName);
+    setPlan(pending.plan);
+    persistPlan(pending.plan, pending.businessName, pending.businessType ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, plan]);
 
   const selectOption = async (value: string) => {
     const next = { ...raw, [question.id]: value };
@@ -396,15 +246,15 @@ export default function PlanBuilder() {
           return;
         }
         setPlan(data.plan);
-        const saved = addBusiness({
-          name: businessName || "Мой бизнес",
-          businessType: BUSINESS_TYPE_LABELS[next.businessType] ?? next.businessType,
-          plan: data.plan as GeneratedPlan,
-        });
-        setBusinesses((prev) => [...prev, saved]);
-        setPlanBusinessId(saved.id);
-        setChecklist(getChecklist(saved.id));
-        setSnapshots(getSnapshots(saved.id));
+        // Анкету можно пройти без регистрации, но сам план гость увидит только
+        // после неё: в аккаунт он попадёт через persistPlan в AuthGate.onDone ниже.
+        if (email) {
+          persistPlan(
+            data.plan as GeneratedPlan,
+            businessName || "Мой бизнес",
+            BUSINESS_TYPE_LABELS[next.businessType] ?? next.businessType
+          );
+        }
       } catch {
         setGenerateError("Не удалось связаться с сервером, попробуйте ещё раз.");
       } finally {
@@ -419,80 +269,6 @@ export default function PlanBuilder() {
     if (stepIndex > 0) setStepIndex((s) => s - 1);
   };
 
-  const startNewBusiness = () => {
-    setRaw({});
-    setStepIndex(0);
-    setPlan(null);
-    setPlanBusinessId(null);
-    setChecklist({});
-    setSnapshots([]);
-    setBusinessName(null);
-    setPdfNotice(null);
-  };
-
-  const handleToggleStep = (moduleId: string, stepIndex: number, stepsLength: number) => {
-    if (!planBusinessId) return;
-    setChecklist(toggleStep(planBusinessId, moduleId, stepIndex, stepsLength));
-  };
-
-  const [downloadingPdf, setDownloadingPdf] = useState(false);
-
-  const downloadPdf = async () => {
-    if (!plan || !businessName) return;
-    setPdfNotice(null);
-    setDownloadingPdf(true);
-    try {
-      const res = await fetch("/api/plan/download-pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessName, plan }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setPdfNotice(data.error || "Не удалось скачать PDF, попробуйте ещё раз.");
-        return;
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "plan.pdf";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch {
-      setPdfNotice("Не удалось связаться с сервером, попробуйте ещё раз.");
-    } finally {
-      setDownloadingPdf(false);
-    }
-  };
-
-  const [sendingPdf, setSendingPdf] = useState(false);
-
-  const emailPdf = async () => {
-    if (!plan || !businessName) return;
-    setSendingPdf(true);
-    setPdfNotice(null);
-    try {
-      const res = await fetch("/api/plan/email-pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessName, plan }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setPdfNotice(data.error || "Не удалось отправить PDF на почту, попробуйте ещё раз.");
-      } else {
-        setPdfNotice(`PDF отправлен на ${email}.`);
-      }
-    } catch {
-      setPdfNotice("Не удалось связаться с сервером, попробуйте ещё раз.");
-    } finally {
-      setSendingPdf(false);
-    }
-  };
-
   const answeredValue = raw[question?.id];
 
   if (status === "loading" || !subLoaded) {
@@ -501,33 +277,37 @@ export default function PlanBuilder() {
 
   return (
     <div id="wizard" className="scroll-mt-24">
-      {!email && <AuthGate onDone={() => {}} />}
-
-      {email && !plan && businessName === null && limitReached && (
+      {!plan && businessName === null && email && limitReached && (
         <LimitReached planId={effectivePlanId} limit={planMeta.businessLimit} />
       )}
 
-      {email && !plan && businessName === null && !limitReached && (
+      {!plan && businessName === null && !(email && limitReached) && (
         <BusinessNameGate onSubmit={setBusinessName} />
       )}
 
-      {email && !plan && businessName !== null && (
+      {!plan && businessName !== null && (
         <div className="mx-auto max-w-xl">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
-            <span>
-              Вы вошли как <b className="text-ink-900">{email}</b>
-            </span>
-            <div className="flex gap-3">
-              <Link href="/account" className="underline underline-offset-4 hover:text-ink-900">
-                Личный кабинет
-              </Link>
-              <button onClick={logOut} className="underline underline-offset-4 hover:text-ink-900">
-                Выйти
-              </button>
+          {email ? (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+              <span>
+                Вы вошли как <b className="text-ink-900">{email}</b>
+              </span>
+              <div className="flex gap-3">
+                <Link href="/account" className="underline underline-offset-4 hover:text-ink-900">
+                  Личный кабинет
+                </Link>
+                <button onClick={logOut} className="underline underline-offset-4 hover:text-ink-900">
+                  Выйти
+                </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <p className="mb-4 text-xs text-muted">
+              Анкета без регистрации — она понадобится, чтобы открыть готовый план.
+            </p>
+          )}
 
-          <div className="mb-6 flex items-center gap-3">
+          <div className="mb-3 flex items-center gap-3">
             <span className="font-mono text-xs text-muted">
               {String(stepIndex + 1).padStart(2, "0")} / {String(QUESTIONS.length).padStart(2, "0")}
             </span>
@@ -539,9 +319,35 @@ export default function PlanBuilder() {
             </div>
           </div>
 
+          <div className="mb-5 flex flex-wrap gap-1.5">
+            {QUESTIONS.map((q, i) => {
+              const answered = raw[q.id] !== undefined;
+              const active = i === stepIndex;
+              return (
+                <span
+                  key={q.id}
+                  className={
+                    "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors " +
+                    (answered
+                      ? "bg-violet text-white"
+                      : active
+                      ? "bg-violet-soft text-violet"
+                      : "bg-soft text-ink-900/30")
+                  }
+                >
+                  {answered ? "✓ " : ""}
+                  {WIZARD_BLOCK_LABELS[q.id] ?? q.id}
+                </span>
+              );
+            })}
+          </div>
+
           <h2 className="font-display text-2xl md:text-3xl text-ink-900 mb-1">{question.title}</h2>
-          {question.subtitle && <p className="text-muted mb-6">{question.subtitle}</p>}
-          {!question.subtitle && <div className="mb-6" />}
+          {question.subtitle && <p className="text-muted mb-2">{question.subtitle}</p>}
+          {WIZARD_BLOCK_HINTS[question.id] && (
+            <p className="mb-6 text-xs text-violet">→ {WIZARD_BLOCK_HINTS[question.id]}</p>
+          )}
+          {!question.subtitle && !WIZARD_BLOCK_HINTS[question.id] && <div className="mb-6" />}
 
           <div className="grid gap-3">
             {question.options.map((opt) => (
@@ -579,106 +385,32 @@ export default function PlanBuilder() {
         </div>
       )}
 
+      {plan && !email && (
+        // Гость план не видит: он сгенерирован и ждёт в localStorage, а на экране —
+        // только форма регистрации. Сам план откроется на /business/[id] сразу
+        // после регистрации (persistPlan в onDone) — вместе с предложением тарифов.
+        <div className="print:hidden">
+          <AuthGate
+            badge="План готов"
+            title="Ваш план готов — осталось зарегистрироваться"
+            subtitle="Создайте аккаунт, и мы сразу покажем план целиком. Он сохранится в личном кабинете — к нему можно вернуться в любой момент."
+            onDone={() =>
+              persistPlan(
+                plan,
+                businessName || "Мой бизнес",
+                BUSINESS_TYPE_LABELS[raw.businessType] ?? raw.businessType
+              )
+            }
+          />
+        </div>
+      )}
+
       {email && plan && (
-        <div>
-          <div id="print-plan">
-            <div className="mb-8 rounded-xl border border-violet/30 bg-violet/5 p-5 md:p-6">
-              <p className="text-xs font-mono uppercase tracking-wide text-violet mb-2">
-                {businessName}
-              </p>
-              <p className="font-display text-lg md:text-xl text-ink-900">{plan.summary}</p>
-            </div>
-
-            <PlanColumn
-              phase="foundation"
-              entries={plan.foundation}
-              checklist={planMeta.checklistAccess ? checklist : undefined}
-              onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
-            />
-            <PlanColumn
-              phase="traffic"
-              entries={plan.traffic}
-              checklist={planMeta.checklistAccess ? checklist : undefined}
-              onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
-            />
-            {planMeta.fullPlanAccess && (
-              <PlanColumn
-                phase="retention"
-                entries={plan.retention}
-                checklist={planMeta.checklistAccess ? checklist : undefined}
-                onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
-              />
-            )}
-          </div>
-
-          {!planMeta.fullPlanAccess && <LockedPhaseCard />}
-
-          <div className="print:hidden">
-            {planMeta.checklistAccess && planBusinessId ? (
-              <PlanAnalytics
-                businessId={planBusinessId}
-                plan={plan}
-                checklist={checklist}
-                snapshots={snapshots}
-                onSnapshotsChange={setSnapshots}
-              />
-            ) : (
-              <LockedAnalytics />
-            )}
-          </div>
-
-          {planMeta.audienceVectorAccess ? (
-            <VectorSection />
-          ) : (
-            <LockedVectorCard />
-          )}
-
-          <div className="print:hidden flex flex-col gap-3 rounded-xl border border-line bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-muted">
-              {planMeta.pdfExportAccess
-                ? `Тариф «${planMeta.name}» открывает экспорт плана — скачайте PDF или получите его на почту.`
-                : planMeta.fullPlanAccess
-                ? "Экспорт плана в PDF и отправка на почту доступны на тарифе «Команда»."
-                : "Пробный план показывает первые 2 этапа из 3. Подписка открывает все этапы, чек-листы и обновления."}
-            </p>
-            <div className="flex shrink-0 flex-wrap gap-2">
-              {planMeta.pdfExportAccess && (
-                <>
-                  <button
-                    onClick={downloadPdf}
-                    disabled={downloadingPdf}
-                    className="rounded-full border border-ink-900/20 px-4 py-2 text-sm font-medium text-ink-900 transition-colors hover:bg-ink-900 hover:text-white disabled:opacity-50"
-                  >
-                    {downloadingPdf ? "Готовим…" : "Скачать PDF"}
-                  </button>
-                  <button
-                    onClick={emailPdf}
-                    disabled={sendingPdf}
-                    className="rounded-full border border-ink-900/20 px-4 py-2 text-sm font-medium text-ink-900 transition-colors hover:bg-ink-900 hover:text-white disabled:opacity-50"
-                  >
-                    {sendingPdf ? "Отправляем…" : "Получить PDF на почту"}
-                  </button>
-                </>
-              )}
-              {!planMeta.pdfExportAccess && (
-                <a
-                  href="/#pricing"
-                  className="rounded-full border border-ink-900/20 px-4 py-2 text-sm font-medium text-ink-900 transition-colors hover:bg-ink-900 hover:text-white"
-                >
-                  Перейти на «Команда»
-                </a>
-              )}
-              <button
-                onClick={startNewBusiness}
-                className="rounded-full bg-ink-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-800"
-              >
-                Новый бизнес
-              </button>
-            </div>
-          </div>
-          {pdfNotice && (
-            <p className="print:hidden mt-3 text-xs font-mono text-violet">{pdfNotice}</p>
-          )}
+        // План уже сохранён в персональный кабинет — persistPlan сразу переключает
+        // на /business/[id], этот текст виден на экране только на долю секунды,
+        // пока идёт переход.
+        <div className="print:hidden py-16 text-center text-sm text-muted">
+          Открываем ваш план…
         </div>
       )}
     </div>

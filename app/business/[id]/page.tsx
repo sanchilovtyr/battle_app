@@ -4,14 +4,27 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import SiteHeader from "@/components/SiteHeader";
-import VectorSection from "@/components/VectorSection";
+import { VectorQuiz, VectorResultCard, VectorLockedTeaser } from "@/components/VectorSection";
+import { VectorId } from "@/lib/vectors";
 import PlanColumn from "@/components/PlanColumn";
 import PlanAnalytics, { LockedAnalytics } from "@/components/PlanAnalytics";
-import { getBusiness, Business } from "@/lib/account";
+import { getBusiness, updateBusinessVector, Business } from "@/lib/account";
 import { getPlan, PlanId } from "@/lib/plans";
 import { computeEffectivePlanId } from "@/lib/subscriptionUtils";
 import { ChecklistState, getChecklist, toggleStep } from "@/lib/checklist";
 import { FunnelSnapshot, getSnapshots } from "@/lib/funnel";
+import { getGrowthTarget } from "@/lib/growthTarget";
+import { recordProgress } from "@/lib/progressHistory";
+import { useCloudSync } from "@/lib/useCloudSync";
+import { businessTypeKeyFromLabel } from "@/lib/businessTypes";
+import { findCaseForBusinessType } from "@/lib/cases";
+import NicheCaseCallout from "@/components/NicheCaseCallout";
+import ReadinessScore from "@/components/ReadinessScore";
+import GrowthPoints, { LockedGrowthPoints } from "@/components/GrowthPoints";
+import ActivityStatusBadge from "@/components/ActivityStatusBadge";
+import PhaseBadges from "@/components/PhaseBadges";
+import LockedPhaseCard from "@/components/LockedPhaseCard";
+import UpgradeOffer from "@/components/UpgradeOffer";
 
 function formatDate(iso: string) {
   try {
@@ -23,11 +36,15 @@ function formatDate(iso: string) {
 
 export default function BusinessPage({ params }: { params: { id: string } }) {
   const { status } = useSession();
+  const { ready: cloudReady, tick: cloudTick } = useCloudSync();
   const [dataLoaded, setDataLoaded] = useState(false);
   const [business, setBusiness] = useState<Business | null>(null);
   const [effectivePlanId, setEffectivePlanId] = useState<PlanId>("trial");
   const [checklist, setChecklist] = useState<ChecklistState>({});
   const [snapshots, setSnapshots] = useState<FunnelSnapshot[]>([]);
+  const [retakingVector, setRetakingVector] = useState(false);
+  // меняется, только если цель на месяц изменили в другом браузере — тогда форма в аналитике обновится
+  const [targetKey, setTargetKey] = useState("");
 
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [sendingPdf, setSendingPdf] = useState(false);
@@ -38,23 +55,36 @@ export default function BusinessPage({ params }: { params: { id: string } }) {
       if (status === "unauthenticated") setDataLoaded(true);
       return;
     }
+    if (!cloudReady) return; // данные ещё подтягиваются с сервера
     const b = getBusiness(params.id);
     setBusiness(b);
     if (b) {
-      setChecklist(getChecklist(b.id));
+      const cl = getChecklist(b.id);
+      setChecklist(cl);
       setSnapshots(getSnapshots(b.id));
+      setTargetKey(JSON.stringify(getGrowthTarget(b.id)));
+      if (b.plan) recordProgress(b.id, b.plan, cl); // точка отсчёта для дашборда
     }
     fetch("/api/me")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => setEffectivePlanId(computeEffectivePlanId(data?.subscription ?? null)))
       .finally(() => setDataLoaded(true));
-  }, [status, params.id]);
+  }, [status, params.id, cloudReady, cloudTick]);
 
   const planMeta = getPlan(effectivePlanId);
 
   const handleToggleStep = (moduleId: string, stepIndex: number, stepsLength: number) => {
     if (!business) return;
-    setChecklist(toggleStep(business.id, moduleId, stepIndex, stepsLength));
+    const next = toggleStep(business.id, moduleId, stepIndex, stepsLength);
+    setChecklist(next);
+    if (business.plan) recordProgress(business.id, business.plan, next); // история для дашборда
+  };
+
+  const handleVectorComplete = (vectorId: VectorId) => {
+    if (!business) return;
+    updateBusinessVector(business.id, vectorId);
+    setBusiness({ ...business, vectorId });
+    setRetakingVector(false);
   };
 
   const downloadPdf = async () => {
@@ -172,43 +202,138 @@ export default function BusinessPage({ params }: { params: { id: string } }) {
           <p className="font-display text-lg md:text-xl text-ink-900">{plan.summary}</p>
         </div>
 
-        <PlanColumn
-          phase="foundation"
-          entries={plan.foundation}
-          checklist={planMeta.checklistAccess ? checklist : undefined}
-          onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
-        />
-        <PlanColumn
-          phase="traffic"
-          entries={plan.traffic}
-          checklist={planMeta.checklistAccess ? checklist : undefined}
-          onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
-        />
-        {planMeta.fullPlanAccess && (
+        {/* 1. Вектор клиента */}
+        {!planMeta.audienceVectorAccess && <VectorLockedTeaser />}
+        {planMeta.audienceVectorAccess && business.vectorId && !retakingVector && (
+          <VectorResultCard vectorId={business.vectorId} onRetake={() => setRetakingVector(true)} />
+        )}
+        {planMeta.audienceVectorAccess && !business.vectorId && !retakingVector && (
+          <div className="print:hidden rounded-2xl border border-dashed border-ink-900/20 bg-soft p-6 text-center">
+            <h3 className="font-display text-lg text-ink-900 mb-1.5">Вектор аудитории</h3>
+            <p className="mx-auto mb-4 max-w-md text-sm text-muted">
+              Короткий квиз из нескольких вопросов покажет психологический профиль вашей аудитории:
+              главную боль, мечту, тон общения и рекомендации по рекламе.
+            </p>
+            <button
+              onClick={() => setRetakingVector(true)}
+              className="rounded-full bg-ink-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-ink-800"
+            >
+              Определить вектор аудитории
+            </button>
+          </div>
+        )}
+        {planMeta.audienceVectorAccess && retakingVector && (
+          <div className="print:hidden">
+            <VectorQuiz onComplete={handleVectorComplete} />
+          </div>
+        )}
+
+        {/* 2. Этапы плана */}
+        <div className="mt-8">
           <PlanColumn
-            phase="retention"
-            entries={plan.retention}
+            phase="foundation"
+            entries={plan.foundation}
             checklist={planMeta.checklistAccess ? checklist : undefined}
             onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
           />
+          <PlanColumn
+            phase="traffic"
+            entries={plan.traffic}
+            checklist={planMeta.checklistAccess ? checklist : undefined}
+            onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
+          />
+          {planMeta.fullPlanAccess ? (
+            <PlanColumn
+              phase="retention"
+              entries={plan.retention}
+              checklist={planMeta.checklistAccess ? checklist : undefined}
+              onToggleStep={planMeta.checklistAccess ? handleToggleStep : undefined}
+            />
+          ) : (
+            <LockedPhaseCard />
+          )}
+        </div>
+
+        {/* Предложение расширить тариф — сразу после плана (не показывается на высшем тарифе) */}
+        <UpgradeOffer currentPlanId={effectivePlanId} />
+
+        {/* Дашборд динамики */}
+        {planMeta.checklistAccess && (
+          <Link
+            href={`/business/${business.id}/dashboard`}
+            className="print:hidden group mt-8 flex items-center justify-between gap-4 rounded-2xl border border-violet/30 bg-violet-soft p-5 transition hover:-translate-y-0.5 hover:border-violet hover:shadow-[0_14px_30px_rgba(118,88,246,0.15)]"
+          >
+            <span>
+              <span className="block font-display text-lg text-ink-900">Дашборд динамики</span>
+              <span className="mt-0.5 block text-sm text-muted">
+                Графики по вашим показателям и выполнению плана: что растёт, а что стоит на месте.
+              </span>
+            </span>
+            <span className="shrink-0 text-xl text-violet transition-transform group-hover:translate-x-1" aria-hidden>→</span>
+          </Link>
         )}
 
-        {planMeta.checklistAccess ? (
-          <PlanAnalytics
+        {/* 3. Где вы теряете клиентов */}
+        <div id="analytics" className="mt-8 scroll-mt-24">
+          {planMeta.checklistAccess ? (
+            <PlanAnalytics
+              key={`${business.id}-${targetKey}`}
+              businessId={business.id}
+              plan={plan}
+              checklist={checklist}
+              snapshots={snapshots}
+              onSnapshotsChange={setSnapshots}
+            />
+          ) : (
+            <LockedAnalytics />
+          )}
+        </div>
+
+        {/* 4. Точки роста компании */}
+        <div className="print:hidden mt-8">
+          {planMeta.growthPointsAccess ? (
+            <GrowthPoints
+              businessId={business.id}
+              plan={plan}
+              checklist={checklist}
+              snapshots={snapshots}
+              target={getGrowthTarget(business.id)}
+            />
+          ) : (
+            <LockedGrowthPoints />
+          )}
+        </div>
+
+        {/* 5. Индекс готовности (вместе со значками фаз и активности) */}
+        {planMeta.checklistAccess && (
+          <div className="print:hidden mt-8 flex flex-wrap items-center justify-between gap-3">
+            <PhaseBadges businessId={business.id} plan={plan} checklist={checklist} />
+            <ActivityStatusBadge snapshots={snapshots} />
+          </div>
+        )}
+        <div className="print:hidden mt-4">
+          <ReadinessScore
             businessId={business.id}
             plan={plan}
             checklist={checklist}
+            checklistAccess={planMeta.checklistAccess}
+            vectorId={business.vectorId}
+            vectorAccess={planMeta.audienceVectorAccess}
             snapshots={snapshots}
-            onSnapshotsChange={setSnapshots}
           />
-        ) : (
-          <LockedAnalytics />
-        )}
+        </div>
 
-        {planMeta.audienceVectorAccess && <VectorSection />}
+        {(() => {
+          const c = findCaseForBusinessType(businessTypeKeyFromLabel(business.businessType));
+          return c ? (
+            <div className="print:hidden mt-8">
+              <NicheCaseCallout c={c} />
+            </div>
+          ) : null;
+        })()}
 
         {planMeta.pdfExportAccess && (
-          <div className="flex flex-col gap-3 rounded-xl border border-line bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-8 flex flex-col gap-3 rounded-xl border border-line bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted">Скачайте план или получите его на почту.</p>
             <div className="flex shrink-0 flex-wrap gap-2">
               <button

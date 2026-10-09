@@ -4,15 +4,23 @@ import HeroPreviewCard from "@/components/HeroPreviewCard";
 import AboutSection from "@/components/AboutSection";
 import JourneySection from "@/components/JourneySection";
 import CasesSection from "@/components/CasesSection";
+import ProductShowcase from "@/components/ProductShowcase";
 import PlanBuilder from "@/components/PlanBuilder";
 import PricingSection from "@/components/PricingSection";
+import EngagementHook from "@/components/EngagementHook";
+import ComparisonSection from "@/components/ComparisonSection";
+import FaqSection from "@/components/FaqSection";
+import FinalCtaSection from "@/components/FinalCtaSection";
 import ContactSection from "@/components/ContactSection";
 import DisclaimerSection from "@/components/DisclaimerSection";
 import { EXECUTOR } from "@/lib/offer";
+import { homeJsonLd } from "@/lib/geo";
+import { NICHES, nichePath } from "@/lib/niches";
 
 export default function Home() {
   return (
     <main>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(homeJsonLd()) }} />
       <SiteHeader />
 
       {/* HERO */}
@@ -26,7 +34,7 @@ export default function Home() {
               Хватит блуждать в маркетинге — вот ваш маршрут к клиентам
             </h1>
             <p className="mb-7 max-w-[570px] text-base text-white/65 sm:text-lg">
-              Отвечаете на 7 вопросов о своём бизнесе — получаете подписку на пошаговый план
+              Отвечаете на 4 вопроса о своём бизнесе — получаете подписку на пошаговый план
               привлечения клиентов: что делать сначала, что потом и почему именно так. Без общих
               советов «продвигайтесь в соцсетях».
             </p>
@@ -36,10 +44,25 @@ export default function Home() {
             >
               Попробовать бесплатно
             </a>
-            <div className="mt-6 flex flex-wrap gap-5 text-[13px] text-white/70">
+            <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-[13px] text-white/70">
               <span className="before:mr-1.5 before:text-brand before:content-['✦']">
-                Первый план продвижения бесплатно
+                4 вопроса — около 3 минут
               </span>
+              <span className="before:mr-1.5 before:text-brand before:content-['✦']">
+                Без карты и звонка
+              </span>
+              <span className="before:mr-1.5 before:text-brand before:content-['✦']">
+                В разы дешевле агентства
+              </span>
+              <span className="before:mr-1.5 before:text-brand before:content-['✦']">
+                Работает с Яндекс.Метрикой
+              </span>
+              <span className="before:mr-1.5 before:text-brand before:content-['✦']">
+                Маркетолог не нужен
+              </span>
+            </div>
+            <div className="mt-6">
+              <EngagementHook />
             </div>
           </div>
           <HeroPreviewCard />
@@ -81,13 +104,41 @@ export default function Home() {
         <div className="mx-auto max-w-6xl px-5 md:px-8">
           <div className="mx-auto mb-12 max-w-xl text-center">
             <h2 className="mb-3 font-display text-3xl tracking-tight text-white md:text-4xl">
-              План превращается в измеримый результат
+              Опыт, который лёг в основу сервиса
             </h2>
             <p className="text-white/60">
-              Когда каналы и первые шаги не приходится собирать из разрозненных советов.
+              15+ лет наша команда вела такие проекты вручную как агентство — и зашила этот опыт в
+              логику «Ключевого слова», чтобы он сам собирал подобный план для вас.
             </p>
           </div>
           <CasesSection />
+          <div className="mt-10 border-t border-white/10 pt-8">
+            <p className="mb-3 text-center text-sm text-white/60">Планы и кейсы по нишам</p>
+            <ul className="flex flex-wrap justify-center gap-2">
+              {NICHES.map((n) => (
+                <li key={n.slug}>
+                  <Link href={nichePath(n.slug)} className="inline-block rounded-full border border-white/20 px-4 py-2 text-sm text-white hover:bg-white/10">
+                    {n.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      {/* SHOWCASE */}
+      <section id="showcase" className="scroll-mt-[68px] bg-soft py-16 sm:scroll-mt-[76px] md:py-24">
+        <div className="mx-auto max-w-6xl px-5 md:px-8">
+          <div className="mx-auto mb-10 max-w-xl text-center">
+            <h2 className="mb-3 font-display text-3xl tracking-tight text-ink-900 md:text-4xl">
+              Так выглядит ваш личный кабинет
+            </h2>
+            <p className="text-muted">
+              План, чек-лист, воронка и дашборд динамики. Нажмите на карточку, чтобы рассмотреть пример крупнее.
+            </p>
+          </div>
+          <ProductShowcase />
         </div>
       </section>
 
@@ -100,7 +151,8 @@ export default function Home() {
             </h2>
             <p className="text-muted">
               Бесплатно вы можете построить и посмотреть план один раз. Подписка открывает
-              чек-листы, обновления, экспорт и многое другое.
+              чек-листы, обновления, экспорт и многое другое. Агентство или маркетолог обойдутся
+              от 60 000 ₽/мес — самый дорогой наш тариф дешевле более чем в 8 раз.
             </p>
           </div>
           <PricingSection />
@@ -108,6 +160,34 @@ export default function Home() {
             Оплата картой российского банка или через СБП. Отменить подписку можно в любой
             момент.
           </p>
+        </div>
+      </section>
+
+      {/* COMPARISON */}
+      <section id="comparison" className="scroll-mt-[68px] bg-white py-16 sm:scroll-mt-[76px] md:py-24">
+        <div className="mx-auto max-w-6xl px-5 md:px-8">
+          <div className="mx-auto mb-10 max-w-xl text-center">
+            <h2 className="mb-3 font-display text-3xl tracking-tight text-ink-900 md:text-4xl">
+              С чем вы сравниваете
+            </h2>
+            <p className="text-muted">
+              Наём агентства или маркетолога — не единственные варианты. Вот честное сравнение.
+            </p>
+          </div>
+          <ComparisonSection />
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="scroll-mt-[68px] bg-gradient-to-b from-white to-soft py-16 sm:scroll-mt-[76px] md:py-24">
+        <div className="mx-auto max-w-6xl px-5 md:px-8">
+          <div className="mx-auto mb-10 max-w-xl text-center">
+            <h2 className="mb-3 font-display text-3xl tracking-tight text-ink-900 md:text-4xl">
+              Наверное, вы думаете...
+            </h2>
+            <p className="text-muted">Собрали вопросы, которые чаще всего задают перед регистрацией.</p>
+          </div>
+          <FaqSection />
         </div>
       </section>
 
@@ -133,9 +213,22 @@ export default function Home() {
         </div>
       </section>
 
+      {/* FINAL CTA */}
+      <section className="bg-ink-900 py-16 md:py-20">
+        <div className="mx-auto max-w-6xl px-5 md:px-8">
+          <FinalCtaSection />
+        </div>
+      </section>
+
       <footer className="bg-ink-900 py-7 text-xs text-white/55">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-5 gap-y-2 px-5 md:px-8">
           <span>© {new Date().getFullYear()} Ключевое слово</span>
+          <Link href="/blog" className="underline underline-offset-4 hover:text-white">
+            Блог
+          </Link>
+          <Link href="/about" className="underline underline-offset-4 hover:text-white">
+            О сервисе
+          </Link>
           <Link href="/oferta" className="underline underline-offset-4 hover:text-white">
             Договор оферты
           </Link>

@@ -11,6 +11,7 @@ interface RealUser {
   createdAt: string;
   planId: PlanId;
   status: "active" | "cancelled";
+  currentPeriodEnd: string | null;
 }
 
 function formatDate(iso: string) {
@@ -63,6 +64,37 @@ export default function AdminUsersTab({ onMessage }: { onMessage: (email: string
       setUsers((prev) => (prev ?? []).map((u) => (u.id === id ? { ...u, planId, status: "active" } : u)));
     } finally {
       setChangingId(null);
+    }
+  };
+
+  const [extendDays, setExtendDays] = useState<Record<string, string>>({});
+  const [extendingId, setExtendingId] = useState<string | null>(null);
+
+  const extendSubscription = async (id: string) => {
+    const days = Number(extendDays[id] ?? "7");
+    if (!Number.isInteger(days) || days <= 0) {
+      alert("Введите целое число дней больше нуля");
+      return;
+    }
+    setExtendingId(id);
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ extendDays: days }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error || "Не удалось продлить тариф");
+        return;
+      }
+      setUsers((prev) =>
+        (prev ?? []).map((u) =>
+          u.id === id ? { ...u, status: "active", currentPeriodEnd: data.currentPeriodEnd } : u
+        )
+      );
+    } finally {
+      setExtendingId(null);
     }
   };
 
@@ -156,6 +188,26 @@ export default function AdminUsersTab({ onMessage }: { onMessage: (email: string
                       </option>
                     ))}
                   </select>
+                  <p className="mb-2 text-xs text-muted">
+                    Тариф до: {u.currentPeriodEnd ? formatDate(u.currentPeriodEnd) : "—"}
+                  </p>
+                  <div className="mb-3 flex gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={365}
+                      value={extendDays[u.id] ?? "7"}
+                      onChange={(e) => setExtendDays((prev) => ({ ...prev, [u.id]: e.target.value }))}
+                      className="w-20 rounded-xl border border-line bg-white p-2.5 text-sm text-ink-900 outline-none focus:border-violet"
+                    />
+                    <button
+                      onClick={() => extendSubscription(u.id)}
+                      disabled={extendingId === u.id}
+                      className="flex-1 rounded-full border border-ink-900/20 px-3 py-2 text-xs font-medium text-ink-900 hover:bg-soft disabled:opacity-50"
+                    >
+                      {extendingId === u.id ? "Продлеваем…" : "Продлить дней"}
+                    </button>
+                  </div>
                   <div className="flex gap-2">
                     <button
                       onClick={() => onMessage(u.email)}
@@ -183,6 +235,7 @@ export default function AdminUsersTab({ onMessage }: { onMessage: (email: string
                   <th className="p-4 font-medium">Пользователь</th>
                   <th className="p-4 font-medium">Тариф</th>
                   <th className="p-4 font-medium">Статус</th>
+                  <th className="p-4 font-medium">Тариф до</th>
                   <th className="p-4 font-medium">Регистрация</th>
                   <th className="p-4 font-medium"></th>
                 </tr>
@@ -220,6 +273,28 @@ export default function AdminUsersTab({ onMessage }: { onMessage: (email: string
                         >
                           {u.status === "active" ? "Активен" : "Отменён"}
                         </span>
+                      </td>
+                      <td className="p-4">
+                        <div className="mb-1.5 text-muted">
+                          {u.currentPeriodEnd ? formatDate(u.currentPeriodEnd) : "—"}
+                        </div>
+                        <div className="flex gap-1.5">
+                          <input
+                            type="number"
+                            min={1}
+                            max={365}
+                            value={extendDays[u.id] ?? "7"}
+                            onChange={(e) => setExtendDays((prev) => ({ ...prev, [u.id]: e.target.value }))}
+                            className="w-16 rounded-lg border border-line bg-white p-1.5 text-xs text-ink-900 outline-none focus:border-violet"
+                          />
+                          <button
+                            onClick={() => extendSubscription(u.id)}
+                            disabled={extendingId === u.id}
+                            className="rounded-full border border-ink-900/20 px-2.5 py-1.5 text-xs font-medium text-ink-900 hover:bg-soft disabled:opacity-50"
+                          >
+                            {extendingId === u.id ? "…" : "+ дней"}
+                          </button>
+                        </div>
                       </td>
                       <td className="p-4 text-muted">{formatDate(u.createdAt)}</td>
                       <td className="p-4">

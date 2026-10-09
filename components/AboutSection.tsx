@@ -71,12 +71,19 @@ export default function AboutSection() {
           </ul>
         </div>
 
-        <div className="rounded-2xl bg-ink-900 p-6 md:p-7">
+        <a
+          href="#wizard"
+          className="group block rounded-2xl bg-ink-900 p-6 transition-colors hover:bg-ink-800 md:p-7"
+        >
           <p className="font-display text-lg leading-snug text-white md:text-xl">
             Превратите маркетинг из хаотичного набора действий в понятный маршрут к росту
             бизнеса.
           </p>
-        </div>
+          <div className="mt-4 flex items-center gap-1.5 text-[13px] font-bold text-brand">
+            Заполнить анкету
+            <span className="transition-transform group-hover:translate-x-0.5">→</span>
+          </div>
+        </a>
       </div>
     </div>
   );

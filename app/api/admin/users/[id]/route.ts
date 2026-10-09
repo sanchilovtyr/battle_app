@@ -29,6 +29,41 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   const body = await req.json().catch(() => null);
+
+  // Продление тарифа на N дней — чтобы можно было компенсировать пользователю
+  // перебои в работе сервиса парой дополнительных дней, не меняя сам тариф.
+  if (body && typeof body.extendDays !== "undefined") {
+    const extendDays = Number(body.extendDays);
+    if (!Number.isInteger(extendDays) || extendDays <= 0 || extendDays > 365) {
+      return NextResponse.json({ error: "Некорректное количество дней (от 1 до 365)" }, { status: 400 });
+    }
+
+    const existing = await prisma.subscription.findUnique({ where: { userId: params.id } });
+    if (!existing) {
+      return NextResponse.json(
+        { error: "У пользователя нет оформленной подписки — сначала выставьте тариф" },
+        { status: 400 }
+      );
+    }
+
+    const base =
+      existing.currentPeriodEnd && existing.currentPeriodEnd.getTime() > Date.now()
+        ? existing.currentPeriodEnd
+        : new Date();
+    const currentPeriodEnd = new Date(base.getTime() + extendDays * 24 * 60 * 60 * 1000);
+
+    try {
+      const updated = await prisma.subscription.update({
+        where: { userId: params.id },
+        data: { currentPeriodEnd, status: "active" },
+      });
+      return NextResponse.json({ ok: true, currentPeriodEnd: updated.currentPeriodEnd });
+    } catch (e) {
+      console.error("Не удалось продлить тариф", e);
+      return NextResponse.json({ error: "Пользователь не найден" }, { status: 404 });
+    }
+  }
+
   const planId = String(body?.planId ?? "");
   if (!PLANS.some((p) => p.id === planId)) {
     return NextResponse.json({ error: "Некорректный тариф" }, { status: 400 });

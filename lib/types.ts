@@ -17,12 +17,14 @@ export type Experience = "beginner" | "middle" | "advanced";
 
 export interface Answers {
   businessType: BusinessType;
-  hasSite: boolean;
-  hasSocial: boolean;
+  // Необязательные: в короткой анкете этих вопросов нет. undefined = «не знаем»,
+  // движок плана в этом случае не делает предположений (см. lib/modules.ts).
+  hasSite?: boolean;
+  hasSocial?: boolean;
   budget: Budget;
   goal: Goal;
   geo: Geo;
-  experience: Experience;
+  experience?: Experience;
 }
 
 export type Phase = "foundation" | "traffic" | "retention";

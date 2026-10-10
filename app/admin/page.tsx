@@ -11,9 +11,10 @@ import AdminMessagesTab from "@/components/AdminMessagesTab";
 import AdminNewsTab from "@/components/AdminNewsTab";
 import AdminBlogTab from "@/components/AdminBlogTab";
 import AdminSeoTab from "@/components/AdminSeoTab";
+import AdminSearchEnginesTab from "@/components/AdminSearchEnginesTab";
 import ScrollTabs from "@/components/ScrollTabs";
 
-type Tab = "users" | "modules" | "vectors" | "growth-points" | "revenue" | "messages" | "news" | "blog" | "seo";
+type Tab = "search-engines" | "users" | "modules" | "vectors" | "growth-points" | "revenue" | "messages" | "news" | "blog" | "seo";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "users", label: "Пользователи" },
@@ -24,6 +25,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "news", label: "Новости" },
   { id: "blog", label: "Блог (SEO)" },
   { id: "seo", label: "SEO-монитор" },
+  { id: "search-engines", label: "Яндекс и Google" },
   { id: "revenue", label: "Выручка" },
 ];
 
@@ -150,6 +152,7 @@ export default function AdminPage() {
             }}
           />
         )}
+        {tab === "search-engines" && <AdminSearchEnginesTab />}
         {tab === "revenue" && <AdminRevenueTab />}
       </div>
     </main>

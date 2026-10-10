@@ -6,7 +6,6 @@ import { useSession, signOut } from "next-auth/react";
 import SiteHeader from "@/components/SiteHeader";
 import SupportSection from "@/components/SupportSection";
 import NewsSection from "@/components/NewsSection";
-import { deleteThreadForEmail } from "@/lib/support";
 import { getPlan, PlanId } from "@/lib/plans";
 import { computeEffectivePlanId } from "@/lib/subscriptionUtils";
 import { getBusinesses, removeBusiness, clearAccount, Business } from "@/lib/account";
@@ -148,7 +147,6 @@ export default function AccountPage() {
   };
 
   const handleDeleteAccount = async () => {
-    if (email) deleteThreadForEmail(email);
     clearAccount();
     await fetch("/api/me", { method: "DELETE" });
     await signOut({ redirect: false });

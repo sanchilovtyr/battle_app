@@ -263,6 +263,76 @@ ok(pendingPosts([pp({ published: false })], now).length === 0 && pendingPosts([p
     ok(Dm.DEMO_PROGRESS.every((p, i, a) => i === 0 || p.total >= a[i - 1].total), "демо-прогресс не убывает");
     ok(Dm.DEMO_READINESS.pct > 0 && Dm.DEMO_BUSINESS.name.includes("демо"), "индекс готовности посчитан, бизнес помечен как демо");
   }
+  // ── Яндекс Вебмастер / Google Search Console (без сети, подменённый fetch) ──
+  {
+    const SE = await import("../lib/searchEngines");
+    const { generateKeyPairSync, createVerify } = await import("crypto");
+    const hosts = [
+      { host_id: "http:m-navi.ru:80", ascii_host_url: "http://m-navi.ru", verified: true },
+      { host_id: "https:m-navi.ru:443", ascii_host_url: "https://m-navi.ru", verified: true },
+      { host_id: "https:other.ru:443", ascii_host_url: "https://other.ru", verified: true },
+    ];
+    ok(SE.pickYandexHost(hosts, "https://m-navi.ru")?.host_id === "https:m-navi.ru:443", "Вебмастер: выбран https-вариант своего сайта");
+    ok(SE.pickYandexHost(hosts, "https://nothing.ru") === null, "Вебмастер: чужой сайт не подбирается");
+    ok(SE.pickYandexHost(hosts, "https://m-navi.ru", "https:custom:443")?.host_id === "https:custom:443", "Вебмастер: явный host_id в приоритете");
+    const yq = SE.parseYandexQueries({ queries: [{ query_text: "продвижение", indicators: { TOTAL_SHOWS: 120, TOTAL_CLICKS: 7, AVG_SHOW_POSITION: 8.349 } }, { query_text: "без позиции", indicators: { TOTAL_SHOWS: 3 } }] });
+    ok(yq[0].shows === 120 && yq[0].clicks === 7 && yq[0].position === 8.3 && yq[1].position === null, "Вебмастер: запросы и позиции разобраны");
+    const yp = SE.parseYandexProblems({ problems: { A: { severity: "RECOMMENDATION", state: "PRESENT" }, B: { severity: "FATAL", state: "PRESENT" }, C: { severity: "CRITICAL", state: "ABSENT" } } });
+    ok(yp.length === 2 && yp[0].code === "B", "Вебмастер: проблемы отсортированы, устранённые скрыты");
+
+    const calls: string[] = [];
+    const fakeY = (async (url: string, init?: RequestInit) => {
+      calls.push(url);
+      const auth = (init?.headers as Record<string, string>)?.Authorization;
+      if (auth !== "OAuth tok") return new Response("no", { status: 403 });
+      const body = url.endsWith("/v4/user") ? { user_id: 42 }
+        : url.endsWith("/hosts") ? { hosts }
+        : url.endsWith("/summary") ? { sqi: 30, searchable_pages_count: 55, excluded_pages_count: 4, problems: { CRITICAL: 1 } }
+        : url.includes("/search-queries/popular") ? { date_from: "2026-10-01", date_to: "2026-10-07", queries: [{ query_text: "q", indicators: { TOTAL_SHOWS: 5, TOTAL_CLICKS: 1, AVG_SHOW_POSITION: 3 } }] }
+        : { problems: { X: { severity: "RECOMMENDATION", state: "PRESENT" } } };
+      return new Response(JSON.stringify(body), { status: 200 });
+    }) as unknown as typeof fetch;
+    const yr = await SE.fetchYandexReport("tok", "https://m-navi.ru", undefined, fakeY);
+    ok(yr.host === "https:m-navi.ru:443" && yr.sqi === 30 && yr.searchablePages === 55 && yr.queries.length === 1 && yr.problems.length === 1, "Вебмастер: отчёт собран из ответов API");
+    ok(calls.some((u) => u.includes("/user/42/hosts/https:m-navi.ru:443/summary")), "Вебмастер: запросы идут по нужному host_id");
+    let denied = "";
+    try { await SE.fetchYandexReport("bad", "https://m-navi.ru", undefined, fakeY); } catch (e) { denied = (e as Error).message; }
+    ok(denied.includes("доступ отклонён"), "Вебмастер: неверный токен даёт понятную ошибку");
+
+    // Google: настоящий RSA-ключ, проверяем подпись JWT
+    const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048, privateKeyEncoding: { type: "pkcs8", format: "pem" }, publicKeyEncoding: { type: "spki", format: "pem" } });
+    const jsonText = JSON.stringify({ type: "service_account", client_email: "bot@proj.iam.gserviceaccount.com", private_key: privateKey });
+    const gk = SE.parseGoogleKeyJson(jsonText);
+    ok(gk?.clientEmail === "bot@proj.iam.gserviceaccount.com" && gk.privateKey.includes("BEGIN PRIVATE KEY"), "Google: JSON-ключ разобран");
+    ok(SE.parseGoogleKeyJson("не json") === null && SE.parseGoogleKeyJson('{"a":1}') === null, "Google: мусор вместо ключа отклоняется");
+    ok(SE.normalizePem("-----BEGIN PRIVATE KEY-----\\nabc\\n-----END PRIVATE KEY-----").includes("\n"), "Google: экранированные \\n в ключе превращаются в переводы строк");
+    const jwt = SE.buildGoogleJwt(gk!, 1000);
+    const [h, c, sig] = jwt.split(".");
+    const claims = JSON.parse(Buffer.from(c, "base64url").toString());
+    ok(claims.iss === gk!.clientEmail && claims.exp === 4600 && claims.scope.endsWith("webmasters.readonly"), "Google: JWT содержит нужные поля");
+    ok(createVerify("RSA-SHA256").update(`${h}.${c}`).verify(publicKey, Buffer.from(sig, "base64url")), "Google: подпись JWT проверяется публичным ключом");
+    const gurls: string[] = [];
+    const fakeG = (async (url: string, init?: RequestInit) => {
+      gurls.push(url);
+      if (url.includes("oauth2.googleapis.com")) return new Response(JSON.stringify({ access_token: "gt" }), { status: 200 });
+      if ((init?.headers as Record<string, string>).Authorization !== "Bearer gt") return new Response("no", { status: 401 });
+      if (url.endsWith("/sitemaps")) return new Response(JSON.stringify({ sitemap: [{ path: "https://m-navi.ru/sitemap.xml", errors: "0", warnings: "1" }] }), { status: 200 });
+      const dim = JSON.parse(String(init?.body)).dimensions[0];
+      return new Response(JSON.stringify({ rows: [{ keys: [dim === "page" ? "https://m-navi.ru/blog" : "запрос"], clicks: 3, impressions: 40, ctr: 0.075, position: 6.74 }] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const gr = await SE.fetchGoogleReport(gk!, "sc-domain:m-navi.ru", fakeG, new Date("2026-10-10T00:00:00Z"));
+    ok(gr.queries[0].ctr === 7.5 && gr.queries[0].position === 6.7 && gr.pages[0].key.endsWith("/blog") && gr.sitemaps[0].warnings === 1, "Google: отчёт собран, CTR в процентах");
+    ok(gr.endDate === "2026-10-07" && gr.startDate === "2026-09-10", "Google: период с отступом в 3 дня, 28 дней");
+    ok(gurls.some((u) => u.includes("sites/sc-domain%3Am-navi.ru/searchAnalytics/query")), "Google: адрес ресурса закодирован");
+  }
+  // ── тикеты на сервере: общие функции ──
+  {
+    const Sh = await import("../lib/supportShared");
+    const m = Sh.toClientMessage({ id: "abc", from: "admin", body: "привет", createdAt: new Date("2026-10-10T10:00:00Z"), hasImage: true }, "a@b.ru");
+    ok(m.from === "admin" && m.imageUrl === "/api/support/image/abc" && m.email === "a@b.ru", "тикеты: сообщение для клиента с адресом вложения");
+    const m2 = Sh.toClientMessage({ id: "x", from: "weird", body: "", createdAt: new Date() }, "a@b.ru");
+    ok(m2.from === "user" && m2.imageUrl === undefined, "тикеты: неизвестный автор считается пользователем, вложения нет");
+  }
   console.log(fails === 0 ? "\nВСЕ ТЕСТЫ ПРОШЛИ" : `\nПРОВАЛЕНО: ${fails}`);
   process.exit(fails ? 1 : 0);
 })();

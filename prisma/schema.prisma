@@ -20,6 +20,8 @@ model User {
   // Когда пользователь последний раз открывал раздел "Новости" в ЛК —
   // всё, что новее этой даты, показывается как непрочитанное
   newsSeenAt   DateTime?
+  // Тикет поддержки закрыт админом (открывается снова, когда пользователь пишет)
+  supportClosed Boolean  @default(false)
 
   subscription        Subscription?
   businesses          Business[]
@@ -63,14 +65,29 @@ model Business {
   @@index([userId])
 }
 
+/// Сообщения техподдержки (тикет = переписка с одним пользователем). Хранятся на
+/// сервере, поэтому видны и пользователю с любого устройства, и админу.
 model SupportMessage {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   from      String // user | admin
   body      String
-  imageUrl  String?
+  imageUrl  String? // устарело, не используется
+  /// Вложение (сжатая картинка jpeg/png/webp, до 900 КБ), отдаётся через /api/support/image/[id]
+  image     Bytes?
   createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+/// Ключи внешних сервисов, введённые в админке (Яндекс Вебмастер, Google Search
+/// Console). Значения хранятся зашифрованно (lib/secretBox.ts); переменные
+/// окружения с теми же именами работают как запасной вариант.
+model IntegrationKey {
+  name      String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
 
 /// Правки текста встроенных модулей (lib/modules.ts) — переопределяют

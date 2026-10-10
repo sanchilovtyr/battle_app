@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { addMessage, getThreads, setThreadClosed, SupportThread } from "@/lib/support";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { fetchThreads, sendAdminMessage, setThreadClosed, SupportThread } from "@/lib/support";
 import ImageAttachField from "@/components/ImageAttachField";
 
 function formatDateTime(iso: string) {
@@ -20,7 +20,9 @@ function formatDateTime(iso: string) {
 type Filter = "open" | "closed" | "all";
 
 export default function AdminMessagesTab({ prefillEmail }: { prefillEmail?: string | null }) {
-  const [version, setVersion] = useState(0);
+  const [threads, setThreads] = useState<SupportThread[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [email, setEmail] = useState(prefillEmail ?? "");
   const [body, setBody] = useState("");
   const [image, setImage] = useState<string | undefined>(undefined);
@@ -39,7 +41,6 @@ export default function AdminMessagesTab({ prefillEmail }: { prefillEmail?: stri
       .catch(() => setKnownEmails([]));
   }, []);
 
-  const threads = useMemo(() => getThreads(), [version]);
   const filteredThreads = useMemo(
     () => threads.filter((t) => filter === "all" || (filter === "open" ? !t.closed : t.closed)),
     [threads, filter]
@@ -47,26 +48,47 @@ export default function AdminMessagesTab({ prefillEmail }: { prefillEmail?: stri
   const openCount = threads.filter((t) => !t.closed).length;
   const closedCount = threads.filter((t) => t.closed).length;
 
-  const refresh = () => setVersion((v) => v + 1);
+  const refresh = useCallback(async () => {
+    try {
+      setThreads(await fetchThreads());
+      setLoadError(null);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : "Не удалось загрузить тикеты");
+    }
+  }, []);
 
-  const send = (e: React.FormEvent) => {
+  useEffect(() => {
+    refresh();
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") refresh();
+    }, 30000);
+    return () => clearInterval(t);
+  }, [refresh]);
+
+  const send = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || (!body.trim() && !image)) return;
-    addMessage(email, "admin", body, image);
-    setBody("");
-    setImage(undefined);
-    setSent(true);
-    refresh();
-    setTimeout(() => setSent(false), 2500);
+    setSendError(null);
+    try {
+      await sendAdminMessage(email, body, image);
+      setBody("");
+      setImage(undefined);
+      setSent(true);
+      await refresh();
+      setTimeout(() => setSent(false), 2500);
+    } catch (err) {
+      setSendError(err instanceof Error ? err.message : "Не удалось отправить");
+    }
   };
 
   return (
     <div>
-      <div className="mb-5 rounded-xl border border-violet/30 bg-violet-soft p-4 text-sm text-violet">
-        Тикеты реально сохраняются и показываются в личном кабинете — но только в этом же
-        браузере: у сервиса пока нет общего бэкенда, поэтому доставить сообщение на другое
-        устройство отсюда нельзя (см. README).
+      <div className="mb-5 rounded-xl border border-green-300 bg-green-50 p-4 text-sm text-green-900">
+        Тикеты хранятся на сервере: пользователь видит ваш ответ в личном кабинете с любого
+        устройства, а вы видите его сообщения здесь. Написать можно только зарегистрированному
+        пользователю (по email из списка).
       </div>
+      {loadError && <p className="mb-4 text-sm text-red-600">{loadError}</p>}
 
       <div className="mb-8 rounded-2xl border border-line bg-white p-6">
         <h3 className="mb-4 font-display text-base text-ink-900">Написать пользователю</h3>
@@ -98,6 +120,7 @@ export default function AdminMessagesTab({ prefillEmail }: { prefillEmail?: stri
             >
               Отправить
             </button>
+            {sendError && <span className="text-sm text-red-600">{sendError}</span>}
             {sent && <span className="text-sm text-violet">Отправлено</span>}
           </div>
         </form>
@@ -142,9 +165,12 @@ export default function AdminMessagesTab({ prefillEmail }: { prefillEmail?: stri
             key={t.email}
             thread={t}
             onReply={(addr) => setEmail(addr)}
-            onToggleClosed={(addr, closed) => {
-              setThreadClosed(addr, closed);
-              refresh();
+            onToggleClosed={async (addr, closed) => {
+              try {
+                await setThreadClosed(addr, closed);
+              } finally {
+                refresh();
+              }
             }}
           />
         ))}
@@ -227,10 +253,10 @@ function ThreadCard({
                 {m.from === "admin" ? "Поддержка" : "Пользователь"} · {formatDateTime(m.createdAt)}
               </p>
               {m.body && <p className="whitespace-pre-wrap">{m.body}</p>}
-              {m.imageDataUrl && (
+              {m.imageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={m.imageDataUrl}
+                  src={m.imageUrl}
                   alt="Вложение"
                   className={`max-h-64 rounded-lg ${m.body ? "mt-2" : ""}`}
                 />

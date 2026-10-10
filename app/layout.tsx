@@ -17,6 +17,12 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "ИП Санчилов Антон Михайлович" }],
   robots: { index: true, follow: true },
+  // Подтверждение прав на сайт в Яндекс Вебмастере (метатег yandex-verification)
+  verification: {
+    yandex: "e4ab0ee262e6629c",
+    // Подтверждение прав на сайт в Google Search Console
+    google: "D5oDR7WNv9NNX5R7TBZA7Z2_70D2fNkKeIV2Ei7iMD8",
+  },
   alternates: { canonical: "/" },
   openGraph: {
     type: "website",

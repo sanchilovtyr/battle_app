@@ -206,3 +206,30 @@ export async function sendContactFormEmail(params: { name: string; contact: stri
     replyTo: EMAIL_RE.test(params.contact.trim()) ? params.contact.trim() : undefined,
   });
 }
+
+export async function sendInactivityWarningEmail(email: string, deleteOn: Date) {
+  const siteUrl = process.env.NEXTAUTH_URL || "";
+  const date = deleteOn.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+  const html = `
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; color: #111525;">
+      <h2 style="margin-bottom: 8px;">Аккаунт будет удалён</h2>
+      <p>Здравствуйте!</p>
+      <p>
+        Вы давно не заходили в аккаунт <b>${email}</b> на сервисе «Ключевое слово».
+        Аккаунты без активности удаляются через 30 дней, поэтому ваш аккаунт, планы
+        и введённые показатели будут удалены примерно <b>${date}</b>.
+      </p>
+      <p>Чтобы сохранить данные, просто войдите в личный кабинет до этой даты.</p>
+      ${siteUrl ? `<p><a href="${siteUrl}/account" style="color:#7658F6;">Войти в личный кабинет</a></p>` : ""}
+      <p style="color: #70758A; font-size: 13px; margin-top: 24px;">
+        Если аккаунт вам больше не нужен, ничего делать не требуется.
+      </p>
+    </div>
+  `;
+
+  await sendMail({
+    to: email,
+    subject: "Аккаунт будет удалён через несколько дней — «Ключевое слово»",
+    html,
+  });
+}

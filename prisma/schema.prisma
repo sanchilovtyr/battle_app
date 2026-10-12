@@ -20,6 +20,12 @@ model User {
   // Когда пользователь последний раз открывал раздел "Новости" в ЛК —
   // всё, что новее этой даты, показывается как непрочитанное
   newsSeenAt   DateTime?
+  // Тикет поддержки закрыт админом (открывается снова, когда пользователь пишет)
+  supportClosed Boolean  @default(false)
+  // Последняя активность (вход или работа в личном кабинете) — аккаунты без активности 30 дней удаляются
+  lastActiveAt       DateTime  @default(now())
+  // Когда отправлено предупреждение об удалении неактивного аккаунта
+  inactivityWarnedAt DateTime?
 
   subscription        Subscription?
   businesses          Business[]
@@ -27,6 +33,8 @@ model User {
   payments            Payment[]
   passwordResetTokens PasswordResetToken[]
   metrikaConnections  MetrikaConnection[]
+
+  @@index([lastActiveAt])
 }
 
 model Subscription {
@@ -51,16 +59,41 @@ model Business {
   // весь сгенерированный план целиком — чтобы можно было открыть его повторно
   planJson     Json
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+  // Всё остальное, что пользователь вносит по бизнесу, хранится здесь, чтобы
+  // данные открывались с любого браузера (раньше жили в localStorage)
+  vectorId      String?
+  checklistJson Json? // moduleId -> boolean[]
+  funnelJson    Json? // показатели воронки по периодам
+  progressJson  Json? // история выполнения плана по дням
+  targetJson    Json? // цель на месяц
+
+  @@index([userId])
 }
 
+/// Сообщения техподдержки (тикет = переписка с одним пользователем). Хранятся на
+/// сервере, поэтому видны и пользователю с любого устройства, и админу.
 model SupportMessage {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   from      String // user | admin
   body      String
-  imageUrl  String?
+  imageUrl  String? // устарело, не используется
+  /// Вложение (сжатая картинка jpeg/png/webp, до 900 КБ), отдаётся через /api/support/image/[id]
+  image     Bytes?
   createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+/// Ключи внешних сервисов, введённые в админке (Яндекс Вебмастер, Google Search
+/// Console). Значения хранятся зашифрованно (lib/secretBox.ts); переменные
+/// окружения с теми же именами работают как запасной вариант.
+model IntegrationKey {
+  name      String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
 
 /// Правки текста встроенных модулей (lib/modules.ts) — переопределяют
@@ -124,9 +157,116 @@ model NewsPost {
   createdAt DateTime @default(now())
 }
 
+/// Статьи блога (SEO-продвижение). Публичная статья — это запись, у которой
+/// published = true и publishedAt <= now(): так отложенная публикация работает
+/// без cron — достаточно выставить будущую дату. Обложка хранится прямо в базе
+/// (coverData, уже сжатый JPEG) и отдаётся по адресу /blog/cover/[slug]
+model BlogPost {
+  id              String    @id @default(cuid())
+  slug            String    @unique
+  title           String
+  excerpt         String    @default("")
+  body            String
+  coverData       Bytes?
+  /// Отдельный флаг, чтобы списки не тянули из базы сами байты картинки
+  hasCover        Boolean   @default(false)
+  coverAlt        String    @default("")
+  metaTitle       String    @default("")
+  metaDescription String    @default("")
+  keywords        String[]  @default([])
+  published       Boolean   @default(false)
+  publishedAt     DateTime?
+  /// Автор: имя, должность/квалификация и краткая справка — для блока «Об авторе» и разметки Person
+  authorName      String    @default("")
+  authorRole      String    @default("")
+  authorBio       String    @default("")
+  /// Когда о статье последний раз сообщили Яндексу и Bing через IndexNow (null — ещё не сообщали)
+  indexNowAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([published, publishedAt])
+}
+
+/// SEO-монитор: список найденных проблем. Ключ (key) = код проверки + объект, поэтому
+/// одна и та же проблема не плодит дубли между запусками: повторно найденная
+/// обновляется, исправленная автоматически получает статус resolved
+model SeoIssue {
+  id           String    @id @default(cuid())
+  key          String    @unique
+  code         String
+  /// critical | warning | info
+  severity     String
+  /// content | technical | indexing | setup
+  category     String
+  title        String
+  detail       String    @default("")
+  fix          String    @default("")
+  /// Путь страницы или slug статьи, к которой относится проблема
+  target       String    @default("")
+  /// id статьи — чтобы из монитора открыть её на редактирование
+  targetId     String    @default("")
+  /// open | snoozed | ignored | resolved
+  status       String    @default("open")
+  snoozedUntil DateTime?
+  firstSeenAt  DateTime  @default(now())
+  lastSeenAt   DateTime  @default(now())
+  resolvedAt   DateTime?
+  /// Когда о проблеме уже сообщили письмом (чтобы не слать одно и то же каждый день)
+  notifiedAt   DateTime?
+
+  @@index([status, severity])
+}
+
+/// История запусков SEO-проверки (оценка «здоровья» сайта по времени)
+model SeoAuditRun {
+  id           String   @id @default(cuid())
+  ranAt        DateTime @default(now())
+  /// manual — кнопка в админке, cron — проверка по расписанию
+  trigger      String   @default("manual")
+  score        Int
+  critical     Int      @default(0)
+  warning      Int      @default(0)
+  info         Int      @default(0)
+  pagesChecked Int      @default(0)
+  /// false — сайт не смог обратиться к собственному адресу (обход страниц пропущен)
+  networkOk    Boolean  @default(true)
+
+  @@index([ranAt])
+}
+
 /// Ссылки для восстановления пароля по email. Хранится только хеш токена
 /// (сам токен есть лишь в письме пользователя) — так утечка базы не даёт
 /// возможности сбросить чей-то пароль
+/// Последний визит поискового или ИИ-робота (по User-Agent; для Яндекса и Google — с проверкой по обратному DNS)
+model BotVisit {
+  id             String    @id @default(cuid())
+  bot            String    @unique
+  kind           String // search | ai
+  firstSeenAt    DateTime  @default(now())
+  lastSeenAt     DateTime
+  lastPath       String    @default("")
+  /// Когда визит последний раз подтверждён по IP (обратный DNS). null — не подтверждался
+  lastVerifiedAt DateTime?
+}
+
+/// Журнал уведомлений Яндекса и Bing о новых и изменённых страницах (IndexNow)
+model IndexNowPing {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  /// publish — при сохранении статьи, cron — отложенные публикации, manual — кнопка в админке
+  trigger   String
+  urlCount  Int
+  /// Первые адреса из отправки (для просмотра в админке)
+  urls      String[] @default([])
+  /// HTTP-код ответа Яндекса (200/202 — принято), 0 — не удалось отправить
+  yandex    Int      @default(0)
+  bing      Int      @default(0)
+  error     String   @default("")
+
+  @@index([createdAt])
+}
+
 model PasswordResetToken {
   id        String    @id @default(cuid())
   userId    String

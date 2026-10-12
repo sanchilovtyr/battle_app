@@ -6,7 +6,7 @@ import { encryptSecret } from "@/lib/secretBox";
 
 function redirectToBusiness(businessId: string, status: string) {
   const siteUrl = process.env.NEXTAUTH_URL || "";
-  return NextResponse.redirect(`${siteUrl}/business/${businessId}?metrika=${status}`);
+  return NextResponse.redirect(`${siteUrl}/business/${businessId}/losses?metrika=${status}`);
 }
 
 export async function GET(req: Request) {

@@ -3,6 +3,8 @@
 // ориентир, с которым сравниваются фактические цифры в "Точках роста".
 // Хранится в localStorage, как чек-лист и воронка.
 
+import { markDirty } from "./cloudSync";
+
 export interface GrowthTarget {
   leadsPerMonth?: number;
   salesPerMonth?: number;
@@ -45,5 +47,6 @@ export function setGrowthTarget(businessId: string, target: GrowthTarget): Growt
     salesPerMonth: target.salesPerMonth || undefined,
   };
   safeSet(keyFor(businessId), JSON.stringify(next));
+  markDirty(businessId, ["target"]);
   return next;
 }

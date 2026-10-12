@@ -1,7 +1,10 @@
 // Самостоятельно вносимые пользователем показатели воронки продаж. Сервис не
 // подключён к счётчикам, телефонии или CRM бизнеса — только к тому, что
 // пользователь укажет сам. Хранится в localStorage, как и бизнесы
-// (lib/account.ts) и чек-листы (lib/checklist.ts).
+// (lib/account.ts) и чек-листы (lib/checklist.ts). Копия сохраняется на сервере
+// (lib/cloudSync.ts), чтобы данные открывались с любого браузера.
+
+import { markDirty } from "./cloudSync";
 
 export type FunnelChannel =
   | "yandex_direct"
@@ -110,12 +113,14 @@ export function addSnapshot(
   };
   const next = [...getSnapshots(businessId), snapshot].slice(-12); // храним последние 12 периодов
   safeSet(keyFor(businessId), JSON.stringify(next));
+  markDirty(businessId, ["funnel"]);
   return next;
 }
 
 export function removeSnapshot(businessId: string, id: string): FunnelSnapshot[] {
   const next = getSnapshots(businessId).filter((s) => s.id !== id);
   safeSet(keyFor(businessId), JSON.stringify(next));
+  markDirty(businessId, ["funnel"]);
   return next;
 }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/db";
+import { touchActivity } from "@/lib/inactivity";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -11,6 +12,7 @@ export async function GET() {
     include: { subscription: true },
   });
   if (!full) return NextResponse.json({ error: "Пользователь не найден" }, { status: 404 });
+  await touchActivity(full.id);
 
   return NextResponse.json({
     email: full.email,

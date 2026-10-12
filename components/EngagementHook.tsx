@@ -27,7 +27,7 @@ export default function EngagementHook() {
 
   return (
     <div className="rounded-2xl border border-white/15 bg-white/[0.04] p-4">
-      <p className="mb-3 text-sm font-medium text-white/85">Что сейчас мешает больше всего?</p>
+      <p className="mb-3 text-sm font-medium text-white/85">Владелец бизнеса, что мешает вам с продвижением больше всего?</p>
       <div className="flex flex-wrap gap-2">
         {OPTIONS.map((opt) => (
           <button

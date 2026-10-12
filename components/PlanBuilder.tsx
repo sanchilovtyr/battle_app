@@ -10,6 +10,8 @@ import { Answers, GeneratedPlan } from "@/lib/types";
 import { getPlan, PlanId } from "@/lib/plans";
 import { computeEffectivePlanId } from "@/lib/subscriptionUtils";
 import { getBusinesses, addBusiness, clearAccount, Business } from "@/lib/account";
+import { useCloudSync } from "@/lib/useCloudSync";
+import { flushQueueBeforeLogout } from "@/lib/cloudSync";
 import { savePendingGuestPlan, loadPendingGuestPlan, clearPendingGuestPlan } from "@/lib/guestPlan";
 import { BUSINESS_TYPE_LABELS } from "@/lib/businessTypes";
 
@@ -119,6 +121,7 @@ export default function PlanBuilder() {
   const email = session?.user?.email ?? null;
 
   const [subLoaded, setSubLoaded] = useState(false);
+  const { ready: cloudReady, tick: cloudTick } = useCloudSync();
   const [effectivePlanId, setEffectivePlanId] = useState<PlanId>("trial");
   const [businesses, setBusinesses] = useState<Business[]>([]);
 
@@ -132,6 +135,7 @@ export default function PlanBuilder() {
       if (status === "unauthenticated") setSubLoaded(true);
       return;
     }
+    if (!cloudReady) return; // ждём, пока подтянутся бизнесы с сервера (иначе в новом браузере лимит посчитается по пустому списку)
     setBusinesses(getBusinesses());
     fetch("/api/me")
       .then((res) => (res.ok ? res.json() : null))
@@ -140,9 +144,10 @@ export default function PlanBuilder() {
         setSubLoaded(true);
       })
       .catch(() => setSubLoaded(true));
-  }, [status]);
+  }, [status, cloudReady, cloudTick]);
 
-  const logOut = () => {
+  const logOut = async () => {
+    await flushQueueBeforeLogout();
     clearAccount();
     setBusinesses([]);
     setEffectivePlanId("trial");

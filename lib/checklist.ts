@@ -4,6 +4,7 @@
 // бизнесов в одном аккаунте не смешивался.
 
 import { GeneratedPlan, PlanEntry } from "./types";
+import { markDirty } from "./cloudSync";
 
 export type ChecklistState = Record<string, boolean[]>; // moduleId -> шаги выполнены
 
@@ -58,6 +59,7 @@ export function toggleStep(
   arr[stepIndex] = !arr[stepIndex];
   const next: ChecklistState = { ...state, [moduleId]: arr };
   safeSet(keyFor(businessId), JSON.stringify(next));
+  markDirty(businessId, ["checklist"]);
   return next;
 }
 

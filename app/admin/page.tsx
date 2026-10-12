@@ -9,8 +9,12 @@ import AdminGrowthPointsTab from "@/components/AdminGrowthPointsTab";
 import AdminRevenueTab from "@/components/AdminRevenueTab";
 import AdminMessagesTab from "@/components/AdminMessagesTab";
 import AdminNewsTab from "@/components/AdminNewsTab";
+import AdminBlogTab from "@/components/AdminBlogTab";
+import AdminSeoTab from "@/components/AdminSeoTab";
+import AdminSearchEnginesTab from "@/components/AdminSearchEnginesTab";
+import ScrollTabs from "@/components/ScrollTabs";
 
-type Tab = "users" | "modules" | "vectors" | "growth-points" | "revenue" | "messages" | "news";
+type Tab = "search-engines" | "users" | "modules" | "vectors" | "growth-points" | "revenue" | "messages" | "news" | "blog" | "seo";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "users", label: "Пользователи" },
@@ -19,6 +23,9 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "vectors", label: "Векторы аудитории" },
   { id: "growth-points", label: "Точки роста" },
   { id: "news", label: "Новости" },
+  { id: "blog", label: "Блог (SEO)" },
+  { id: "seo", label: "SEO-монитор" },
+  { id: "search-engines", label: "Яндекс и Google" },
   { id: "revenue", label: "Выручка" },
 ];
 
@@ -29,6 +36,7 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [tab, setTab] = useState<Tab>("users");
+  const [editPostId, setEditPostId] = useState<string | null>(null);
   const [messagePrefill, setMessagePrefill] = useState<string | null>(null);
 
   useEffect(() => {
@@ -124,19 +132,7 @@ export default function AdminPage() {
               </Link>
             </div>
           </div>
-          <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:px-0">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                  tab === t.id ? "bg-ink-900 text-white" : "border border-line text-ink-900 hover:bg-soft"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <ScrollTabs tabs={TABS} active={tab} onChange={setTab} />
         </div>
       </div>
 
@@ -147,6 +143,16 @@ export default function AdminPage() {
         {tab === "vectors" && <AdminVectorsTab />}
         {tab === "growth-points" && <AdminGrowthPointsTab />}
         {tab === "news" && <AdminNewsTab />}
+        {tab === "blog" && <AdminBlogTab openPostId={editPostId} onOpened={() => setEditPostId(null)} />}
+        {tab === "seo" && (
+          <AdminSeoTab
+            onEditPost={(id) => {
+              setEditPostId(id);
+              setTab("blog");
+            }}
+          />
+        )}
+        {tab === "search-engines" && <AdminSearchEnginesTab />}
         {tab === "revenue" && <AdminRevenueTab />}
       </div>
     </main>

@@ -4,6 +4,7 @@ import YandexProvider from "next-auth/providers/yandex";
 import bcrypt from "bcryptjs";
 import { prisma } from "./db";
 import { checkRateLimit } from "./rateLimit";
+import { touchActivity } from "./inactivity";
 
 // Вход через Яндекс ID — опциональный провайдер: если переменные окружения
 // не заданы (например, в локальной разработке), просто не подключаем его,
@@ -51,6 +52,7 @@ export const authOptions: NextAuthOptions = {
         const valid = await bcrypt.compare(credentials.password, user.passwordHash);
         if (!valid) return null;
 
+        await touchActivity(user.id);
         return { id: user.id, email: user.email, name: user.name || user.email };
       },
     }),
@@ -68,6 +70,7 @@ export const authOptions: NextAuthOptions = {
         const existing = await prisma.user.findUnique({ where: { email } });
         if (existing) {
           user.id = existing.id;
+          await touchActivity(existing.id);
         } else {
           const created = await prisma.user.create({
             data: { email, passwordHash: null, name: user.name || "" },

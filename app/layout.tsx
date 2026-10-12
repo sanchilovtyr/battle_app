@@ -4,6 +4,13 @@ import Providers from "@/components/Providers";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://m-navi.ru"),
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
   title: "Ключевое слово — персональный план продвижения бизнеса",
   description:
     "Пошаговый план продвижения и привлечения клиентов из интернета для малого и среднего бизнеса в России. Отвечаете на 4 вопроса о бизнесе — получаете конкретный маршрут: что делать сначала, что потом и почему.",
@@ -17,6 +24,12 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "ИП Санчилов Антон Михайлович" }],
   robots: { index: true, follow: true },
+  // Подтверждение прав на сайт в Яндекс Вебмастере (метатег yandex-verification)
+  verification: {
+    yandex: "e4ab0ee262e6629c",
+    // Подтверждение прав на сайт в Google Search Console
+    google: "D5oDR7WNv9NNX5R7TBZA7Z2_70D2fNkKeIV2Ei7iMD8",
+  },
   alternates: { canonical: "/" },
   openGraph: {
     type: "website",
@@ -45,20 +58,21 @@ const organizationJsonLd = {
   "@type": "Organization",
   name: "Ключевое слово",
   url: "https://m-navi.ru",
+  logo: "https://m-navi.ru/app-icon-512.png",
   description:
     "Сервис персональных маркетинговых планов для малого и среднего бизнеса.",
+  areaServed: "RU",
+  knowsLanguage: "ru",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ru">
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700;800&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
-          rel="stylesheet"
-        />
+        {/* Главные шрифты (заголовки и основной текст) грузим сразу — они в первом экране. Остальные подтянутся по мере надобности */}
+        {["unbounded-cyrillic", "unbounded-latin", "manrope-cyrillic", "manrope-latin"].map((f) => (
+          <link key={f} rel="preload" href={`/fonts/${f}.woff2`} as="font" type="font/woff2" crossOrigin="anonymous" />
+        ))}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}

@@ -6,10 +6,11 @@ import { useSession, signOut } from "next-auth/react";
 import SiteHeader from "@/components/SiteHeader";
 import SupportSection from "@/components/SupportSection";
 import NewsSection from "@/components/NewsSection";
-import { deleteThreadForEmail } from "@/lib/support";
 import { getPlan, PlanId } from "@/lib/plans";
 import { computeEffectivePlanId } from "@/lib/subscriptionUtils";
 import { getBusinesses, removeBusiness, clearAccount, Business } from "@/lib/account";
+import { useCloudSync } from "@/lib/useCloudSync";
+import { flushQueueBeforeLogout } from "@/lib/cloudSync";
 import RenewalRecap from "@/components/RenewalRecap";
 import AuthGate from "@/components/AuthGate";
 
@@ -33,6 +34,7 @@ export default function AccountPage() {
   const email = session?.user?.email ?? null;
 
   const [dataLoaded, setDataLoaded] = useState(false);
+  const { ready: cloudReady, tick: cloudTick } = useCloudSync();
   const [profile, setProfile] = useState({ name: "", phone: "" });
   const [subscription, setSubscription] = useState<ApiSubscription>({
     planId: "trial",
@@ -69,10 +71,14 @@ export default function AccountPage() {
       if (status === "unauthenticated") setDataLoaded(true);
       return;
     }
-    setBusinesses(getBusinesses());
     loadMe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
+
+  // Бизнесы подтягиваются с сервера: показываем, когда загрузка закончилась, и обновляем после каждой синхронизации
+  useEffect(() => {
+    if (status === "authenticated" && cloudReady) setBusinesses(getBusinesses());
+  }, [status, cloudReady, cloudTick]);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,13 +140,13 @@ export default function AccountPage() {
   };
 
   const handleLogout = async () => {
+    await flushQueueBeforeLogout();
     clearAccount();
     await signOut({ redirect: false });
     window.location.href = "/";
   };
 
   const handleDeleteAccount = async () => {
-    if (email) deleteThreadForEmail(email);
     clearAccount();
     await fetch("/api/me", { method: "DELETE" });
     await signOut({ redirect: false });
@@ -165,7 +171,7 @@ export default function AccountPage() {
     daysUntilRenewal >= 0 &&
     daysUntilRenewal <= 5;
 
-  if (status === "loading" || !dataLoaded) {
+  if (status === "loading" || !dataLoaded || (status === "authenticated" && !cloudReady)) {
     return (
       <main>
         <SiteHeader />
@@ -418,6 +424,14 @@ export default function AccountPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-4">
+                  {b.plan && effectivePlan.checklistAccess && (
+                    <Link
+                      href={`/business/${b.id}/dashboard`}
+                      className="rounded-full bg-[#e6f7f0] px-3 py-1 text-sm font-semibold text-[#0f7a54] ring-1 ring-[#1baf7a]/50 hover:bg-[#d9f2e8]"
+                    >
+                      Дашборд
+                    </Link>
+                  )}
                   {b.plan && (
                     <Link
                       href={`/business/${b.id}`}

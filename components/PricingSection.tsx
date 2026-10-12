@@ -67,10 +67,10 @@ export default function PricingSection() {
         {PLANS.map((plan) => (
           <div
             key={plan.id}
-            className={`flex flex-col rounded-2xl border p-6 ${
+            className={`flex flex-col rounded-2xl border p-6 transition-all duration-300 ease-out ${
               plan.highlighted
-                ? "border-brand bg-ink-900 text-white shadow-lg lg:-translate-y-2"
-                : "border-line bg-white text-ink-900"
+                ? "border-brand bg-ink-900 text-white shadow-lg lg:-translate-y-2 hover:lg:-translate-y-4 hover:shadow-[0_24px_50px_rgba(17,21,37,0.35)]"
+                : "border-line bg-white text-ink-900 hover:-translate-y-2 hover:border-violet hover:shadow-[0_24px_50px_rgba(118,88,246,0.2)]"
             }`}
           >
             {plan.highlighted && (

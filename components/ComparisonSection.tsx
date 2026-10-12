@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+
 const ROWS: { label: string; us: string; agency: string; freelancer: string; nothing: string }[] = [
   {
     label: "Цена в месяц",
@@ -15,7 +19,7 @@ const ROWS: { label: string; us: string; agency: string; freelancer: string; not
   },
   {
     label: "Персонализация под нишу",
-    us: "По 7 ответам + вектору аудитории",
+    us: "По 4 ответам о вашем бизнесе",
     agency: "Зависит от команды и брифа",
     freelancer: "Зависит от опыта конкретного человека",
     nothing: "—",
@@ -50,7 +54,20 @@ const OPTIONS = [
   { key: "nothing" as const, name: "Ничего не делать" },
 ];
 
+type ColKey = (typeof OPTIONS)[number]["key"];
+
 export default function ComparisonSection() {
+  // Выделен тот столбец, на который наведён курсор; если курсора нет — выбранный
+  // кликом; если не выбран ничего — «Ключевое слово»
+  const [hovered, setHovered] = useState<ColKey | null>(null);
+  const [selected, setSelected] = useState<ColKey | null>(null);
+  const active: ColKey = hovered ?? selected ?? "us";
+  const colProps = (k: ColKey) => ({
+    onMouseEnter: () => setHovered(k),
+    onMouseLeave: () => setHovered(null),
+    onClick: () => setSelected((cur) => (cur === k ? null : k)),
+  });
+
   return (
     <div className="mx-auto max-w-5xl">
       {/* Десктоп и планшет — полная таблица */}
@@ -59,20 +76,26 @@ export default function ComparisonSection() {
           <thead>
             <tr>
               <th className="p-3 text-left text-xs font-medium uppercase tracking-wide text-muted"> </th>
-              {OPTIONS.map((o) =>
-                o.highlight ? (
-                  <th
-                    key={o.key}
-                    className="rounded-t-xl border border-b-0 border-violet bg-ink-900 p-3.5 text-left text-white"
-                  >
-                    {o.name}
-                  </th>
-                ) : (
-                  <th key={o.key} className="p-3.5 text-left font-medium text-ink-900">
-                    {o.name}
-                  </th>
-                )
-              )}
+              {OPTIONS.map((o) => (
+                <th
+                  key={o.key}
+                  {...colProps(o.key)}
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelected((cur) => (cur === o.key ? null : o.key));
+                    }
+                  }}
+                  className={`cursor-pointer p-3.5 text-left transition-colors duration-200 ${
+                    active === o.key
+                      ? "rounded-t-xl border border-b-0 border-violet bg-ink-900 text-white"
+                      : "border border-b-0 border-transparent font-medium text-ink-900"
+                  }`}
+                >
+                  {o.name}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -83,16 +106,22 @@ export default function ComparisonSection() {
                   <th scope="row" className="border-t border-line p-3.5 text-left text-sm font-medium text-ink-900">
                     {row.label}
                   </th>
-                  <td
-                    className={`border-x border-violet bg-violet-soft p-3.5 font-medium text-ink-900 ${
-                      isLast ? "rounded-b-xl border-b" : ""
-                    }`}
-                  >
-                    {row.us}
-                  </td>
-                  <td className="border-t border-line p-3.5 text-muted">{row.agency}</td>
-                  <td className="border-t border-line p-3.5 text-muted">{row.freelancer}</td>
-                  <td className="border-t border-line p-3.5 text-muted">{row.nothing}</td>
+                  {OPTIONS.map((o) => {
+                    const on = active === o.key;
+                    return (
+                      <td
+                        key={o.key}
+                        {...colProps(o.key)}
+                        className={`cursor-pointer p-3.5 transition-colors duration-200 ${
+                          on
+                            ? `border-x border-t border-x-violet border-t-violet/15 bg-violet-soft font-medium text-ink-900 ${isLast ? "rounded-b-xl border-b border-b-violet" : ""}`
+                            : "border-x border-t border-x-transparent border-t-line text-muted"
+                        }`}
+                      >
+                        {row[o.key]}
+                      </td>
+                    );
+                  })}
                 </tr>
               );
             })}

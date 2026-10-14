@@ -33,6 +33,7 @@ function toData(patch: ReturnType<typeof sanitizePatch>) {
     ...(patch.progress !== undefined ? { progressJson: patch.progress } : {}),
     ...(patch.target !== undefined ? { targetJson: patch.target } : {}),
     ...(patch.clients !== undefined ? { crmJson: patch.clients } : {}),
+    ...(patch.unit !== undefined ? { unitJson: patch.unit } : {}),
   };
 }
 

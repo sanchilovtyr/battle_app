@@ -463,6 +463,62 @@ ok(pendingPosts([pp({ published: false })], now).length === 0 && pendingPosts([p
     ok(Bc.sanitizeClients(Array.from({ length: 400 }, (_, i) => ({ id: "c" + i, name: "n" }))).length === 300, "CRM-сервер: не больше 300 клиентов");
     ok(Bc.sanitizePatch({ clients: [{ id: "z", name: "Я" }] }).clients?.length === 1 && Bc.sanitizePatch({ name: "x" }).clients === undefined, "CRM-сервер: отсутствующее поле не затирается");
   }
+  // ── юнит-экономика ──
+  {
+    const U = await import("../lib/unitEconomicsCore");
+    const Bu = await import("../lib/businessSync");
+    const base = { spend: 60000, customers: 20, avgCheck: 5000, marginPct: 40, purchases: 3 };
+    const r = U.computeUnit(base);
+    ok(r.cac === 3000, "юнит: CAC = 60 000 / 20 = 3 000");
+    ok(r.profitPerPurchase === 2000 && r.ltv === 6000, "юнит: прибыль с покупки 2 000, LTV за 3 покупки 6 000");
+    ok(r.ltvCac === 2 && r.verdict === "weak", "юнит: LTV/CAC = 2 → запас небольшой");
+    ok(r.paybackPurchases === 1.5 && r.firstDealProfit === -1000, "юнит: окупается за 1,5 покупки, с первой — минус 1 000");
+    ok(r.maxCac === 6000 && r.comfortCac === 2000, "юнит: предел 6 000, комфортно треть LTV = 2 000");
+    ok(U.computeUnit({ ...base, purchases: 6 }).verdict === "good", "юнит: LTV/CAC 4 → хорошо");
+    ok(U.computeUnit({ ...base, avgCheck: 2000 }).verdict === "loss", "юнит: LTV/CAC меньше 1 → в минус");
+    const one = U.computeUnit({ ...base, purchases: 1 });
+    ok(!one.repeatMode && one.verdict === "loss" && one.firstDealProfit === -1000, "юнит: разовая покупка — вердикт по первой сделке, без LTV-порога");
+    ok(U.computeUnit({ ...base, purchases: 1, marginPct: 80 }).verdict === "good", "юнит: разовая, первая сделка в плюс → окупается");
+    const noMargin = U.computeUnit({ ...base, marginPct: null });
+    ok(noMargin.cac === 3000 && noMargin.ltv === null && noMargin.verdict === null && noMargin.ltvCac === null, "юнит: без маржи считается только CAC");
+    const noData = U.computeUnit({ spend: null, customers: 0, avgCheck: null, marginPct: null, purchases: 0 });
+    ok(noData.cac === null && noData.verdict === null, "юнит: пустые данные — без значений и без деления на ноль");
+    ok(U.computeUnit({ ...base, marginPct: 0 }).paybackPurchases === null, "юнит: нулевая маржа — окупаемость не считается");
+    const sc = U.scenario(base, { cacPct: 50, checkPct: 0, marginPoints: 0 });
+    ok(sc.cac === 4500 && sc.ltvCac === 1.3, "юнит: сценарий CAC +50% → 4 500 и 1,3×: " + sc.cac + "/" + sc.ltvCac);
+    ok(U.scenario(base, { cacPct: 0, checkPct: 0, marginPoints: 0 }).ltvCac === r.ltvCac, "юнит: сценарий без изменений равен базе");
+    ok(U.scenario(base, { cacPct: 0, checkPct: 0, marginPoints: 90 }).ltv === 15000, "юнит: маржа в сценарии не выше 100%");
+
+    const now3 = new Date("2026-10-14T12:00:00+03:00");
+    const snaps = [
+      { id: "s1", createdAt: "2026-07-01T09:00:00Z", label: "Июль", visitors: 0, leads: 0, sales: 5, repeat: 0, adSpend: 99999, avgReceipt: 1000 },
+      { id: "s2", createdAt: "2026-09-01T09:00:00Z", label: "Сентябрь 2026", visitors: 500, leads: 50, sales: 20, repeat: 10, adSpend: 40000, avgReceipt: 2500 },
+      { id: "s3", createdAt: "2026-10-05T09:00:00Z", label: "Октябрь 2026", visitors: 500, leads: 50, sales: 10, repeat: 5, adSpend: 20000, avgReceipt: 3000 },
+    ] as never;
+    const clients = [
+      { id: "1", status: "won", amount: 10000, closedAt: "2026-10-01T09:00:00Z", updatedAt: "2026-10-01T09:00:00Z" },
+      { id: "2", status: "won", amount: 20000, closedAt: "2026-09-10T09:00:00Z", updatedAt: "2026-09-10T09:00:00Z" },
+      { id: "3", status: "won", amount: 5000, closedAt: "2026-05-01T09:00:00Z", updatedAt: "2026-05-01T09:00:00Z" },
+      { id: "4", status: "in_work", amount: 7000, updatedAt: "2026-10-10T09:00:00Z" },
+      { id: "5", status: "won", closedAt: "2026-10-02T09:00:00Z", updatedAt: "2026-10-02T09:00:00Z" },
+    ] as never;
+    const a = U.pickAutoInputs(snaps, clients, now3);
+    ok(a.crm?.spend === 60000 && a.crm?.customers === 3, "авто: CRM за 90 дней — расходы только свежих периодов (60 000), 3 оплаты");
+    ok(a.crm?.avgCheck === 15000, "авто: средний чек считается по оплатам с суммой (без записи без суммы)");
+    ok(a.funnel?.label === "Октябрь 2026" && a.funnel?.spend === 20000 && a.funnel?.customers === 10 && a.funnel?.avgCheck === 3000, "авто: воронка — последний период");
+    ok(a.funnel?.purchasesHint === 1.5, "авто: подсказка покупок на клиента = 1 + 5/10 = 1,5");
+    ok(a.crm?.funnelSales === 30 && U.crmLooksIncomplete(a.crm), "авто: в воронке 30 продаж за 90 дней при 3 оплатах в CRM → предупреждение о неполной CRM");
+    ok(!U.crmLooksIncomplete(a.funnel) && !U.crmLooksIncomplete(null), "авто: для режима воронки и без данных предупреждения нет");
+    const none = U.pickAutoInputs([], [], now3);
+    ok(none.crm === null && none.funnel === null, "авто: нет данных — нечего подставлять");
+    ok(U.pickAutoInputs(snaps, [], now3).crm === null, "авто: без оплат в CRM режим CRM не предлагается");
+
+    ok(JSON.stringify(Bu.sanitizeUnit({ marginPct: 40, purchases: 2.5 })) === '{"marginPct":40,"purchases":2.5}', "юнит-сервер: нормальные значения сохраняются");
+    const bad = Bu.sanitizeUnit({ marginPct: 500, purchases: 0, x: 1 });
+    ok(bad.marginPct === 100 && bad.purchases === 1 && Object.keys(bad).length === 2, "юнит-сервер: значения зажаты в границы, лишние поля отброшены");
+    ok(Object.keys(Bu.sanitizeUnit("мусор")).length === 0 && Object.keys(Bu.sanitizeUnit([1])).length === 0, "юнит-сервер: не объект — пусто");
+    ok(Bu.sanitizePatch({ unit: { marginPct: 30 } }).unit?.marginPct === 30 && Bu.sanitizePatch({ name: "x" }).unit === undefined, "юнит-сервер: отсутствующее поле не затирается");
+  }
   console.log(fails === 0 ? "\nВСЕ ТЕСТЫ ПРОШЛИ" : `\nПРОВАЛЕНО: ${fails}`);
   process.exit(fails ? 1 : 0);
 })();

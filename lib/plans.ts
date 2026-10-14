@@ -23,6 +23,8 @@ export interface PricingPlan {
   growthPointsAccess: boolean;
   /** Доступна ли лёгкая CRM (клиенты, суммы сделок, вклад сервиса) — только «Премиум» */
   crmAccess: boolean;
+  /** Доступна ли юнит-экономика (CAC, LTV, окупаемость) с автоподстановкой из воронки и CRM — только «Премиум» */
+  unitEconomicsAccess: boolean;
 }
 
 export const PLANS: PricingPlan[] = [
@@ -45,6 +47,7 @@ export const PLANS: PricingPlan[] = [
     checklistAccess: false,
     growthPointsAccess: false,
     crmAccess: false,
+    unitEconomicsAccess: false,
   },
   {
     id: "start",
@@ -65,6 +68,7 @@ export const PLANS: PricingPlan[] = [
     checklistAccess: false,
     growthPointsAccess: false,
     crmAccess: false,
+    unitEconomicsAccess: false,
   },
   {
     id: "business",
@@ -90,6 +94,7 @@ export const PLANS: PricingPlan[] = [
     checklistAccess: true,
     growthPointsAccess: false,
     crmAccess: false,
+    unitEconomicsAccess: false,
   },
   {
     id: "agency",
@@ -104,6 +109,7 @@ export const PLANS: PricingPlan[] = [
       "Аналитика: в каком моменте бизнес теряет клиентов",
       "Дашборд динамики и ROMI: видно, окупается ли продвижение",
       "Лёгкая CRM: клиенты, суммы сделок и вклад сервиса в выручку",
+      "Юнит-экономика: CAC, LTV и окупаемость клиента, данные подставляются из воронки и CRM",
       "Точки роста: рекомендации на стыке чек-листа, воронки и Метрики",
       "Определение вектора аудитории и рекомендации по рекламе",
       "Экспорт плана в PDF",
@@ -117,6 +123,7 @@ export const PLANS: PricingPlan[] = [
     checklistAccess: true,
     growthPointsAccess: true,
     crmAccess: true,
+    unitEconomicsAccess: true,
   },
 ];
 

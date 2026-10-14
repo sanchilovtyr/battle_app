@@ -68,6 +68,7 @@ model Business {
   progressJson  Json? // история выполнения плана по дням
   targetJson    Json? // цель на месяц
   crmJson       Json? // клиенты лёгкой CRM
+  unitJson      Json? // допущения юнит-экономики (маржа, покупок на клиента)
 
   @@index([userId])
 }

@@ -10,6 +10,7 @@ const ITEMS = [
   { slug: "losses", label: "Где вы теряете клиентов", icon: "▽" },
   { slug: "growth", label: "Точки роста компании", icon: "↗" },
   { slug: "clients", label: "Клиенты (CRM)", icon: "☷" },
+  { slug: "unit-economics", label: "Юнит-экономика", icon: "∑" },
 ];
 
 /** Левое меню разделов плана (десктоп) и горизонтальная полоса под шапкой (мобильный). */

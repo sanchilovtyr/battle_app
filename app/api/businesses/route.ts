@@ -25,6 +25,7 @@ export async function GET() {
       progress: b.progressJson ?? [],
       target: b.targetJson ?? {},
       clients: b.crmJson ?? [],
+      unit: b.unitJson ?? {},
     })),
   });
 }

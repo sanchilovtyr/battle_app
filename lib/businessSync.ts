@@ -89,6 +89,14 @@ export function sanitizeClients(input: unknown) {
   return out;
 }
 
+export function sanitizeUnit(input: unknown): { marginPct?: number; purchases?: number } {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  const r = input as Record<string, unknown>;
+  const m = num(r.marginPct, 0, 100);
+  const p = num(r.purchases, 1, 100);
+  return { ...(m !== undefined ? { marginPct: m } : {}), ...(p !== undefined ? { purchases: p } : {}) };
+}
+
 export function sanitizeChecklist(input: unknown): Record<string, boolean[]> {
   const out: Record<string, boolean[]> = {};
   if (!input || typeof input !== "object" || Array.isArray(input)) return out;
@@ -152,6 +160,7 @@ export interface BusinessPatch {
   progress?: ReturnType<typeof sanitizeProgress>;
   target?: ReturnType<typeof sanitizeTarget>;
   clients?: ReturnType<typeof sanitizeClients>;
+  unit?: ReturnType<typeof sanitizeUnit>;
 }
 
 /** Из тела запроса берём только присланные поля — отсутствующее не затираем. */
@@ -169,6 +178,7 @@ export function sanitizePatch(body: unknown): BusinessPatch {
   if ("progress" in b) out.progress = sanitizeProgress(b.progress);
   if ("target" in b) out.target = sanitizeTarget(b.target);
   if ("clients" in b) out.clients = sanitizeClients(b.clients);
+  if ("unit" in b) out.unit = sanitizeUnit(b.unit);
   return out;
 }
 

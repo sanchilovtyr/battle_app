@@ -67,6 +67,7 @@ model Business {
   funnelJson    Json? // показатели воронки по периодам
   progressJson  Json? // история выполнения плана по дням
   targetJson    Json? // цель на месяц
+  crmJson       Json? // клиенты лёгкой CRM
 
   @@index([userId])
 }

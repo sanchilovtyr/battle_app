@@ -414,6 +414,55 @@ ok(pendingPosts([pp({ published: false })], now).length === 0 && pendingPosts([p
     ok(m[0].romi === 150, "ROMI в периоде: 20 × 2500 = 50 000 при расходах 20 000 → 150%");
     ok(m[1].romi === null, "ROMI в периоде без бюджета — нет значения");
   }
+  // ── лёгкая CRM ──
+  {
+    const C = await import("../lib/crmCore");
+    const Bc = await import("../lib/businessSync");
+    const now2 = new Date("2026-10-14T12:00:00+03:00");
+    const mk = (o: Record<string, unknown>) => ({ id: String(Math.random()).slice(2), createdAt: "2026-10-01T09:00:00Z", updatedAt: "2026-10-01T09:00:00Z", name: "К", contact: "", source: "yandex_direct", viaService: true, status: "new", ...o }) as never;
+    const list = [
+      mk({ status: "won", amount: 10000, closedAt: "2026-10-05T09:00:00Z" }),
+      mk({ status: "won", amount: 5000, closedAt: "2026-09-20T09:00:00Z" }),
+      mk({ status: "won", amount: 3000, viaService: false, source: "referral", closedAt: "2026-10-06T09:00:00Z" }),
+      mk({ status: "lost", closedAt: "2026-10-02T09:00:00Z" }),
+      mk({ status: "in_work" }),
+    ];
+    const st = C.computeCrmStats(list, now2, 4490);
+    ok(st.total === 5 && st.won === 3 && st.lost === 1 && st.active === 1, "CRM: счётчики статусов");
+    ok(st.revenue === 18000 && st.avgCheck === 6000, "CRM: выручка и средний чек");
+    ok(st.conversion === 60, "CRM: конверсия 3 из 5 = 60%");
+    ok(st.service.total === 4 && st.service.won === 2 && st.service.revenue === 15000, "CRM: клиенты от сервиса");
+    ok(st.service.monthRevenue === 10000 && st.service.monthWon === 1, "CRM: за месяц только октябрьские оплаты");
+    ok(st.paybackMonth === 2.2, "CRM: 10 000 / 4 490 = 2.2×: " + st.paybackMonth);
+    ok(st.bySource[0].source === "yandex_direct" && st.bySource[0].revenue === 15000, "CRM: источники отсортированы по выручке");
+    const empty = C.computeCrmStats([], now2, 4490);
+    ok(empty.conversion === null && empty.avgCheck === null && empty.paybackMonth === null, "CRM: пусто — нет значений");
+    ok(C.computeCrmStats(list, now2, 0).paybackMonth === null, "CRM: без цены тарифа окупаемость не считается");
+    ok(C.parsePrice("4 490 ₽") === 4490 && C.parsePrice("0 ₽") === 0 && C.parsePrice(undefined) === 0, "CRM: цена тарифа из строки");
+    const w = C.withStatus(mk({ status: "won", amount: 100, closedAt: "2026-10-05T09:00:00Z" }), "in_work", "2026-10-14T00:00:00Z");
+    ok(w.amount === 100 && w.closedAt === undefined && w.status === "in_work", "CRM: из «Оплатил» назад — дата закрытия сброшена, сумма сделки остаётся");
+    ok(C.withStatus(w, "lost", "2026-10-14T00:00:00Z").amount === undefined, "CRM: «Не купил» — суммы нет");
+    const w2 = C.withStatus(mk({ status: "won", amount: 100, closedAt: "2026-10-05T09:00:00Z" }), "won", "2026-10-14T00:00:00Z");
+    ok(w2.closedAt === "2026-10-05T09:00:00Z" && w2.amount === 100, "CRM: повторный «Оплатил» не двигает дату закрытия");
+    const csv = C.clientsToCsv([mk({ name: 'Иван; "Тест"', note: "строка\nдве", status: "won", amount: 100 })], { yandex_direct: "Яндекс Директ" });
+    ok(csv.startsWith("\uFEFFДата;Имя") && csv.includes('"Иван; ""Тест"""') && csv.includes("Оплатил;100"), "CRM: CSV экранирует ; и кавычки");
+
+    const san = Bc.sanitizeClients([
+      { id: "a1", name: "  Анна ", contact: "x".repeat(500), source: "bogus", viaService: "yes", status: "won", amount: -5 },
+      { id: "a1", name: "Дубль" },
+      { id: "a2", name: "" },
+      { id: "a3", name: "Борис", status: "lost", amount: 999, note: "  заметка " },
+      "мусор",
+    ]);
+    ok(san.length === 2, "CRM-сервер: дубли и пустые имена отброшены: " + san.length);
+    ok(san[0].name === "Анна" && san[0].contact.length === 120 && san[0].source === "other" && san[0].viaService === false, "CRM-сервер: поля очищены");
+    ok(san[0].amount === 0 && san[0].closedAt !== undefined, "CRM-сервер: отрицательная сумма → 0, у оплаты есть дата закрытия");
+    ok(Bc.sanitizeClients([{ id: "k1", name: "Я", status: "in_work", amount: 7000 }])[0].amount === 7000, "CRM-сервер: у «В работе» сумма сохраняется");
+    ok(C.computeCrmStats([mk({ status: "in_work", amount: 7000 }), mk({ status: "new", amount: 3000 }), mk({ status: "won", amount: 1000, closedAt: "2026-10-05T09:00:00Z" })], now2, 0).pipeline === 10000, "CRM: ожидаемые сделки суммируются, выручка только по оплаченным");
+    ok(san[1].amount === undefined && san[1].note === "заметка", "CRM-сервер: у «Не купил» суммы нет");
+    ok(Bc.sanitizeClients(Array.from({ length: 400 }, (_, i) => ({ id: "c" + i, name: "n" }))).length === 300, "CRM-сервер: не больше 300 клиентов");
+    ok(Bc.sanitizePatch({ clients: [{ id: "z", name: "Я" }] }).clients?.length === 1 && Bc.sanitizePatch({ name: "x" }).clients === undefined, "CRM-сервер: отсутствующее поле не затирается");
+  }
   console.log(fails === 0 ? "\nВСЕ ТЕСТЫ ПРОШЛИ" : `\nПРОВАЛЕНО: ${fails}`);
   process.exit(fails ? 1 : 0);
 })();

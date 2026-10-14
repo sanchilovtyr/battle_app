@@ -4,9 +4,10 @@
 
 import type { GeneratedPlan } from "./types";
 import { isPlanSizeReasonable } from "./planValidation";
+import { CLIENT_STATUSES, CRM_SOURCES, MAX_CLIENTS } from "./crmCore";
 
 export const MAX_BUSINESSES_PER_USER = 25;
-export const MAX_BODY_BYTES = 600_000;
+export const MAX_BODY_BYTES = 800_000;
 const MAX_SNAPSHOTS = 24;
 const MAX_PROGRESS = 180;
 const ID_RE = /^[A-Za-z0-9_-]{6,64}$/;
@@ -50,6 +51,39 @@ export function sanitizeFunnel(input: unknown) {
       dropReason: oneOf(r.dropReason, REASONS),
       reviewsCount: num(r.reviewsCount) === undefined ? undefined : Math.round(num(r.reviewsCount) as number),
       reviewsRating: num(r.reviewsRating, 0, 5),
+    });
+  }
+  return out;
+}
+
+export function sanitizeClients(input: unknown) {
+  if (!Array.isArray(input)) return [];
+  const out = [];
+  const seen = new Set<string>();
+  for (const raw of input.slice(0, MAX_CLIENTS)) {
+    if (!raw || typeof raw !== "object") continue;
+    const r = raw as Record<string, unknown>;
+    const id = str(r.id, 64);
+    const name = (str(r.name, 120) ?? "").trim();
+    if (!id || !name || seen.has(id)) continue;
+    seen.add(id);
+    const status = oneOf(r.status, CLIENT_STATUSES) ?? "new";
+    const createdAt = str(r.createdAt, 40) ?? new Date().toISOString();
+    const amount = status === "lost" ? undefined : num(r.amount, 0, 1e9);
+    const note = (str(r.note, 500) ?? "").trim();
+    const closedAt = status === "won" || status === "lost" ? str(r.closedAt, 40) ?? str(r.updatedAt, 40) ?? createdAt : undefined;
+    out.push({
+      id,
+      createdAt,
+      updatedAt: str(r.updatedAt, 40) ?? createdAt,
+      name,
+      contact: (str(r.contact, 120) ?? "").trim(),
+      source: oneOf(r.source, CRM_SOURCES) ?? "other",
+      viaService: r.viaService === true,
+      status,
+      ...(amount !== undefined ? { amount } : {}),
+      ...(note ? { note } : {}),
+      ...(closedAt ? { closedAt } : {}),
     });
   }
   return out;
@@ -117,6 +151,7 @@ export interface BusinessPatch {
   funnel?: ReturnType<typeof sanitizeFunnel>;
   progress?: ReturnType<typeof sanitizeProgress>;
   target?: ReturnType<typeof sanitizeTarget>;
+  clients?: ReturnType<typeof sanitizeClients>;
 }
 
 /** Из тела запроса берём только присланные поля — отсутствующее не затираем. */
@@ -133,6 +168,7 @@ export function sanitizePatch(body: unknown): BusinessPatch {
   if ("funnel" in b) out.funnel = sanitizeFunnel(b.funnel);
   if ("progress" in b) out.progress = sanitizeProgress(b.progress);
   if ("target" in b) out.target = sanitizeTarget(b.target);
+  if ("clients" in b) out.clients = sanitizeClients(b.clients);
   return out;
 }
 

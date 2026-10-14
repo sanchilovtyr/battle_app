@@ -24,6 +24,7 @@ export async function GET() {
       funnel: b.funnelJson ?? [],
       progress: b.progressJson ?? [],
       target: b.targetJson ?? {},
+      clients: b.crmJson ?? [],
     })),
   });
 }

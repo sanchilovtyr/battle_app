@@ -15,7 +15,7 @@ const OWNER_KEY = "promoplan_sync_owner";
 const QUEUE_KEY = "promoplan_sync_queue";
 const SYNC_EVENT = "promoplan:synced";
 
-export type SyncField = "vectorId" | "checklist" | "funnel" | "progress" | "target" | "name";
+export type SyncField = "vectorId" | "checklist" | "funnel" | "progress" | "target" | "clients" | "name";
 
 interface QueueEntry {
   put?: boolean; // нужно создать/залить бизнес целиком
@@ -29,6 +29,7 @@ const fieldKey = {
   funnel: (id: string) => `promoplan_funnel_${id}`,
   progress: (id: string) => `promoplan_progress_${id}`,
   target: (id: string) => `promoplan_target_${id}`,
+  clients: (id: string) => `promoplan_clients_${id}`,
 };
 
 function get(key: string): string | null {
@@ -120,6 +121,8 @@ function localField(id: string, f: SyncField): unknown {
       return readJson(fieldKey.progress(id), []);
     case "target":
       return readJson(fieldKey.target(id), {});
+    case "clients":
+      return readJson(fieldKey.clients(id), []);
   }
 }
 
@@ -136,6 +139,7 @@ function fullPayload(id: string) {
     funnel: localField(id, "funnel"),
     progress: localField(id, "progress"),
     target: localField(id, "target"),
+    clients: localField(id, "clients"),
   };
 }
 
@@ -233,7 +237,7 @@ export function wipeLocalBusinessData() {
   try {
     for (let i = window.localStorage.length - 1; i >= 0; i--) {
       const k = window.localStorage.key(i);
-      const m = k?.match(/^promoplan_(?:checklist|funnel|progress|target|level_seen|badges_seen)_(.+)$/);
+      const m = k?.match(/^promoplan_(?:checklist|funnel|progress|target|clients|level_seen|badges_seen)_(.+)$/);
       if (k && m) ids.add(m[1]);
     }
   } catch {
@@ -244,6 +248,7 @@ export function wipeLocalBusinessData() {
     remove(fieldKey.funnel(id));
     remove(fieldKey.progress(id));
     remove(fieldKey.target(id));
+    remove(fieldKey.clients(id));
     remove(`promoplan_level_seen_${id}`); // отметки «уже показали поздравление» — только для этого браузера
     remove(`promoplan_badges_seen_${id}`);
   });
@@ -263,6 +268,7 @@ interface ServerBusiness {
   funnel: unknown;
   progress: unknown;
   target: unknown;
+  clients?: unknown;
 }
 
 let syncing: Promise<void> | null = null;
@@ -304,6 +310,7 @@ export function syncFromServer(userId: string): Promise<void> {
               funnel: payload.funnel,
               progress: payload.progress,
               target: payload.target,
+              clients: payload.clients,
             });
           }
         }
@@ -334,6 +341,7 @@ export function syncFromServer(userId: string): Promise<void> {
         set(fieldKey.funnel(sb.id), JSON.stringify(sb.funnel ?? []));
         set(fieldKey.progress(sb.id), JSON.stringify(sb.progress ?? []));
         set(fieldKey.target(sb.id), JSON.stringify(sb.target ?? {}));
+        set(fieldKey.clients(sb.id), JSON.stringify(sb.clients ?? []));
       }
       for (const b of localList) {
         if (!b?.id || serverIds.has(b.id)) continue;
@@ -344,6 +352,7 @@ export function syncFromServer(userId: string): Promise<void> {
           remove(fieldKey.funnel(b.id));
           remove(fieldKey.progress(b.id));
           remove(fieldKey.target(b.id));
+          remove(fieldKey.clients(b.id));
         }
       }
       next.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));

@@ -432,6 +432,14 @@ export default function AccountPage() {
                       Дашборд
                     </Link>
                   )}
+                  {b.plan && effectivePlan.checklistAccess && (
+                    <Link
+                      href={`/business/${b.id}/clients`}
+                      className="text-sm font-medium text-violet underline underline-offset-4 hover:text-ink-900"
+                    >
+                      Клиенты
+                    </Link>
+                  )}
                   {b.plan && (
                     <Link
                       href={`/business/${b.id}`}

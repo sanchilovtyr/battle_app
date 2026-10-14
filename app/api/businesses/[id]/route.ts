@@ -32,6 +32,7 @@ function toData(patch: ReturnType<typeof sanitizePatch>) {
     ...(patch.funnel !== undefined ? { funnelJson: patch.funnel } : {}),
     ...(patch.progress !== undefined ? { progressJson: patch.progress } : {}),
     ...(patch.target !== undefined ? { targetJson: patch.target } : {}),
+    ...(patch.clients !== undefined ? { crmJson: patch.clients } : {}),
   };
 }
 

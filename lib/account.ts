@@ -7,6 +7,7 @@ import { GeneratedPlan } from "./types";
 import { VectorId } from "./vectors";
 import { clearChecklist } from "./checklist";
 import { clearFunnel } from "./funnel";
+import { clearClients } from "./crm";
 import { clearProgressHistory } from "./progressHistory";
 import { markCreated, markDeleted, markDirty, wipeLocalBusinessData } from "./cloudSync";
 
@@ -93,6 +94,7 @@ export function removeBusiness(id: string) {
   safeSet(BUSINESSES_KEY, JSON.stringify(next));
   clearChecklist(id);
   clearFunnel(id);
+  clearClients(id);
   clearProgressHistory(id);
   markDeleted(id);
 }

@@ -46,7 +46,7 @@ const EXAMPLES: Example[] = [
     title: "Графики по периодам",
     text: "Цель на месяц, стоимость заявки, отзывы и выполнение плана по этапам.",
     width: 1000,
-    offsetY: 800,
+    offsetY: 985,
     preview: Dashboard,
     full: Dashboard,
   },
@@ -132,7 +132,11 @@ export default function ProductShowcase() {
 
   const scroll = (dir: 1 | -1) => {
     const el = trackRef.current;
-    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: "smooth" });
+    if (!el) return;
+    const first = el.firstElementChild as HTMLElement | null;
+    // шаг — ровно одна карточка (на телефоне карточка занимает всю ширину)
+    const step = first ? first.offsetWidth + 16 : el.clientWidth * 0.8;
+    el.scrollBy({ left: dir * step, behavior: "smooth" });
   };
 
   const close = useCallback(() => setOpenIdx(null), []);
@@ -158,10 +162,10 @@ export default function ProductShowcase() {
 
       <div
         ref={trackRef}
-        className="scrollbar-hide -mx-5 flex snap-x snap-mandatory scroll-pl-5 overflow-x-auto scroll-smooth px-5 pb-4 md:mx-0 md:scroll-pl-0 md:gap-5 md:px-0"
+        className="scrollbar-hide flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-4 md:gap-5"
       >
         {EXAMPLES.map((ex, i) => (
-          <div key={ex.id} className="w-[88%] shrink-0 snap-start pr-3 sm:w-[48%] md:pr-0 lg:w-[calc(33.333%-14px)]">
+          <div key={ex.id} className="w-full shrink-0 snap-start sm:w-[calc(50%-10px)] lg:w-[calc(33.333%-14px)]">
             <article
               role="button"
               tabIndex={0}

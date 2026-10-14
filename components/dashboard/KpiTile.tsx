@@ -23,7 +23,7 @@ export default function KpiTile({ label, value, unit, hint, delta = null, tone =
   return (
     <div className={`rounded-xl border border-line border-t-2 bg-white p-4 ${t.bar}`}>
       <p className="text-xs text-muted">{label}</p>
-      <p className="mt-1.5 font-display text-2xl leading-none text-ink-900 sm:text-3xl">
+      <p className="mt-1.5 font-display text-xl leading-none text-ink-900 sm:text-3xl">
         {value}
         {unit && value !== "—" && <span className="ml-1 text-base text-muted">{unit}</span>}
       </p>

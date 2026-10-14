@@ -16,6 +16,7 @@ import {
 } from "@/lib/dashboard";
 import KpiTile from "./KpiTile";
 import LineChart from "./LineChart";
+import RomiCard from "./RomiCard";
 
 // Цвета рядов: проверены валидатором палитр (разделимы при дальтонизме); порядок фиксирован
 const C1 = "#7658F6"; // фиолетовый — основной ряд
@@ -184,6 +185,8 @@ export default function BusinessDashboard({ businessId, businessName, snapshots,
             </ul>
           )}
 
+          <RomiCard latest={latest} previous={previous} />
+
           {periods < 2 && (
             <p className="mb-4 rounded-xl bg-soft p-4 text-sm text-muted">
               Внесён один период — динамика появится, когда добавите следующий. Раз в месяц достаточно.
@@ -225,8 +228,8 @@ export default function BusinessDashboard({ businessId, businessName, snapshots,
             />
             {hasCost ? (
               <LineChart
-                title="Стоимость заявки и продажи, ₽"
-                subtitle="Рекламный бюджет периода ÷ число заявок или продаж"
+                title="Стоимость заявки и продажи"
+                subtitle="В рублях: рекламный бюджет периода ÷ число заявок или продаж"
                 categories={cats}
                 fullLabels={full}
                 format={rub}
@@ -240,6 +243,16 @@ export default function BusinessDashboard({ businessId, businessName, snapshots,
                 <p className="mb-1 font-display text-base text-ink-900">Стоимость заявки и продажи</p>
                 Укажите рекламный бюджет за период в дополнительных полях при внесении показателей — график появится сам.
               </div>
+            )}
+            {metrics.some((m) => m.romi !== null) && (
+              <LineChart
+                title="ROMI по периодам"
+                subtitle="Выше нуля — продвижение окупилось"
+                categories={cats}
+                fullLabels={full}
+                format={(n) => `${fmtNum(n, 1)}%`}
+                series={[{ name: "ROMI", color: C3, values: metrics.map((m) => m.romi) }]}
+              />
             )}
             {hasReviews && (
               <LineChart

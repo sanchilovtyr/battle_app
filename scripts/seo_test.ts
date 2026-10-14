@@ -379,6 +379,41 @@ ok(pendingPosts([pp({ published: false })], now).length === 0 && pendingPosts([p
     const loggedBack = { ...user(5, 6), inactivityWarnedAt: ago(6) };
     ok(In.decideInactivityAction(loggedBack, nowI) === "keep", "неактивные: вернувшийся пользователь остаётся");
   }
+  {
+    const PK = await import("../lib/publishKeyCore");
+    const key = PK.generatePublishKey();
+    ok(key.startsWith("kslv_") && key.length > 40, "ключ публикации: формат и длина");
+    const h = PK.hashPublishKey(key);
+    ok(PK.keyMatches(key, h) && PK.keyMatches(`  ${key} `, h), "ключ публикации: верный ключ проходит");
+    ok(!PK.keyMatches(key + "x", h) && !PK.keyMatches("", h) && !PK.keyMatches(key, ""), "ключ публикации: неверный/пустой не проходит");
+    ok(PK.bearerFrom("Bearer abc123") === "abc123" && PK.bearerFrom("abc") === "" && PK.bearerFrom(null) === "", "ключ публикации: разбор заголовка");
+    const t0 = Date.parse("2026-10-13T12:00:00Z");
+    const iso = (ms: number) => new Date(t0 + ms).toISOString();
+    ok(PK.checkPublishMode({ publishMode: "draft" }, t0).ok, "публикация по ключу: черновик разрешён");
+    ok(!PK.checkPublishMode({ publishMode: "now" }, t0).ok, "публикация по ключу: мгновенная запрещена");
+    ok(!PK.checkPublishMode({ publishMode: "schedule", publishAt: iso(10 * 60000) }, t0).ok, "публикация по ключу: ближе чем через час запрещена");
+    ok(PK.checkPublishMode({ publishMode: "schedule", publishAt: iso(26 * 3600000) }, t0).ok, "публикация по ключу: через сутки разрешена");
+    ok(!PK.checkPublishMode({ publishMode: "schedule", publishAt: iso(100 * 86400000) }, t0).ok, "публикация по ключу: дальше 90 дней запрещена");
+    ok(!PK.checkPublishMode({ publishMode: "schedule", publishAt: "мусор" }, t0).ok, "публикация по ключу: кривая дата запрещена");
+    const lim = PK.makeFailLimiter(3, 1000);
+    for (let i = 0; i < 3; i++) lim.fail("ip", 0);
+    ok(lim.blocked("ip", 500) && !lim.blocked("ip", 1500) && !lim.blocked("other", 0), "ключ публикации: ограничитель перебора");
+  }
+  {
+    const D = await import("../lib/dashboard");
+    ok(D.romiPercent(150000, 100000) === 50, "ROMI: 150 000 выручки на 100 000 расходов = 50%");
+    ok(D.romiPercent(80000, 100000) === -20, "ROMI: выручка меньше расходов — отрицательный");
+    ok(D.romiPercent(1000, 0) === null && D.romiPercent(null, 1000) === null && D.romiPercent(1000, null) === null, "ROMI: без расходов или дохода не считается");
+    ok(D.romiWithMargin(200000, 100000, 40) === -20, "ROMI по прибыли: 200 000 × 40% = 80 000 против 100 000 расходов");
+    ok(D.romiWithMargin(200000, 100000, 0) === null && D.romiWithMargin(200000, 100000, 150) === null, "ROMI по прибыли: маржа вне 1–100 не принимается");
+    ok(D.romiReturnPerRuble(50) === 1.5 && D.romiReturnPerRuble(-20) === 0.8 && D.romiReturnPerRuble(null) === null, "ROMI: сколько рублей выручки с рубля вложений");
+    const m = D.periodMetrics([
+      { id: "a", createdAt: "2026-09-01", label: "Сентябрь 2026", visitors: 500, leads: 50, sales: 20, repeat: 3, adSpend: 20000, avgReceipt: 2500 },
+      { id: "b", createdAt: "2026-10-01", label: "Октябрь 2026", visitors: 500, leads: 50, sales: 20, repeat: 3 },
+    ] as never);
+    ok(m[0].romi === 150, "ROMI в периоде: 20 × 2500 = 50 000 при расходах 20 000 → 150%");
+    ok(m[1].romi === null, "ROMI в периоде без бюджета — нет значения");
+  }
   console.log(fails === 0 ? "\nВСЕ ТЕСТЫ ПРОШЛИ" : `\nПРОВАЛЕНО: ${fails}`);
   process.exit(fails ? 1 : 0);
 })();

@@ -34,7 +34,7 @@ export default function SiteHeader({ ctaHref = "/#wizard" }: { ctaHref?: string 
             width={920}
             height={256}
             priority
-            className="h-8 w-auto sm:hidden"
+            className="h-[28px] w-auto min-[400px]:h-8 sm:hidden"
           />
           <Image
             src="/logo-full.png"
@@ -88,7 +88,7 @@ export default function SiteHeader({ ctaHref = "/#wizard" }: { ctaHref?: string 
           </button>
           <a
             href={ctaHref}
-            className="whitespace-nowrap rounded-[9px] bg-brand px-3.5 py-2.5 text-xs font-extrabold text-ink-900 shadow-[0_10px_25px_rgba(0,0,0,0.1)] transition-transform hover:-translate-y-0.5 sm:px-5 sm:py-3 sm:text-sm"
+            className="whitespace-nowrap rounded-[9px] bg-brand px-3 py-2.5 min-[400px]:px-3.5 text-xs font-extrabold text-ink-900 shadow-[0_10px_25px_rgba(0,0,0,0.1)] transition-transform hover:-translate-y-0.5 sm:px-5 sm:py-3 sm:text-sm"
           >
             Построить план
           </a>

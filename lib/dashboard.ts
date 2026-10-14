@@ -25,6 +25,8 @@ export interface PeriodMetrics {
   avgReceipt: number | null;
   /** Оценочная выручка = продажи × средний чек (повторные не учитываются). */
   revenue: number | null;
+  /** ROMI, %: (выручка − расходы на продвижение) ÷ расходы × 100. Нужны бюджет, чек и продажи. */
+  romi: number | null;
   reviewsCount: number | null;
   reviewsRating: number | null;
 }
@@ -52,12 +54,30 @@ export function shortLabel(label: string): string {
   return t.length > 9 ? `${t.slice(0, 8)}…` : t || "—";
 }
 
+/** ROMI в % с одним знаком. null — не из чего считать (нет расходов или дохода). */
+export function romiPercent(income: number | null, spend: number | null): number | null {
+  if (income === null || spend === null || spend <= 0) return null;
+  return Math.round(((income - spend) / spend) * 1000) / 10;
+}
+
+/** ROMI по прибыли: вместо выручки берём валовую прибыль = выручка × маржа. Маржа в % (1–100). */
+export function romiWithMargin(revenue: number | null, spend: number | null, marginPct: number): number | null {
+  if (revenue === null || !(marginPct > 0) || marginPct > 100) return null;
+  return romiPercent(revenue * (marginPct / 100), spend);
+}
+
+/** Как читать ROMI: на каждый вложенный рубль вернулось столько рублей (с учётом самого вложенного рубля). */
+export function romiReturnPerRuble(romi: number | null): number | null {
+  return romi === null ? null : Math.round((1 + romi / 100) * 100) / 100;
+}
+
 export function periodMetrics(snapshots: FunnelSnapshot[]): PeriodMetrics[] {
   return [...snapshots]
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     .map((s) => {
       const adSpend = s.adSpend && s.adSpend > 0 ? s.adSpend : null;
       const avgReceipt = s.avgReceipt && s.avgReceipt > 0 ? s.avgReceipt : null;
+      const revenue = avgReceipt !== null && s.sales > 0 ? Math.round(avgReceipt * s.sales) : null;
       return {
         id: s.id,
         label: s.label,
@@ -73,7 +93,8 @@ export function periodMetrics(snapshots: FunnelSnapshot[]): PeriodMetrics[] {
         costPerLead: ratio(adSpend, s.leads),
         costPerSale: ratio(adSpend, s.sales),
         avgReceipt,
-        revenue: avgReceipt !== null && s.sales > 0 ? Math.round(avgReceipt * s.sales) : null,
+        revenue,
+        romi: romiPercent(revenue, adSpend),
         reviewsCount: s.reviewsCount && s.reviewsCount > 0 ? s.reviewsCount : null,
         reviewsRating: s.reviewsRating && s.reviewsRating > 0 ? s.reviewsRating : null,
       };

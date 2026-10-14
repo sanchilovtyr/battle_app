@@ -21,6 +21,8 @@ export interface PricingPlan {
   checklistAccess: boolean;
   /** Доступны ли "Точки роста" — сквозные рекомендации по чек-листу, воронке и Метрике */
   growthPointsAccess: boolean;
+  /** Доступна ли лёгкая CRM (клиенты, суммы сделок, вклад сервиса) — только «Премиум» */
+  crmAccess: boolean;
 }
 
 export const PLANS: PricingPlan[] = [
@@ -42,6 +44,7 @@ export const PLANS: PricingPlan[] = [
     pdfExportAccess: false,
     checklistAccess: false,
     growthPointsAccess: false,
+    crmAccess: false,
   },
   {
     id: "start",
@@ -61,6 +64,7 @@ export const PLANS: PricingPlan[] = [
     pdfExportAccess: false,
     checklistAccess: false,
     growthPointsAccess: false,
+    crmAccess: false,
   },
   {
     id: "business",
@@ -73,6 +77,7 @@ export const PLANS: PricingPlan[] = [
       "Всё из тарифа «Старт»",
       "Чек-листы с отметками о выполнении",
       "Аналитика: в каком моменте бизнес теряет клиентов",
+      "Дашборд динамики и ROMI: видно, окупается ли продвижение",
       "Определение вектора аудитории и рекомендации по рекламе",
       "Регулярное обновление плана",
       "Техническая поддержка",
@@ -84,6 +89,7 @@ export const PLANS: PricingPlan[] = [
     pdfExportAccess: false,
     checklistAccess: true,
     growthPointsAccess: false,
+    crmAccess: false,
   },
   {
     id: "agency",
@@ -96,6 +102,8 @@ export const PLANS: PricingPlan[] = [
       "Всё из тарифа «Старт»",
       "Чек-листы с отметками о выполнении",
       "Аналитика: в каком моменте бизнес теряет клиентов",
+      "Дашборд динамики и ROMI: видно, окупается ли продвижение",
+      "Лёгкая CRM: клиенты, суммы сделок и вклад сервиса в выручку",
       "Точки роста: рекомендации на стыке чек-листа, воронки и Метрики",
       "Определение вектора аудитории и рекомендации по рекламе",
       "Экспорт плана в PDF",
@@ -108,6 +116,7 @@ export const PLANS: PricingPlan[] = [
     pdfExportAccess: true,
     checklistAccess: true,
     growthPointsAccess: true,
+    crmAccess: true,
   },
 ];
 

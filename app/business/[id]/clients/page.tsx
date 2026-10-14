@@ -12,10 +12,10 @@ export default function ClientsPage() {
 
   if (!business || !business.plan) return null;
 
-  if (!planMeta.checklistAccess) {
+  if (!planMeta.crmAccess) {
     return (
       <div className="mx-auto max-w-md py-12 text-center">
-        <h1 className="mb-2 font-display text-2xl text-ink-900">CRM доступна на тарифах «Бизнес» и «Премиум»</h1>
+        <h1 className="mb-2 font-display text-2xl text-ink-900">CRM доступна на тарифе «Премиум»</h1>
         <p className="mb-6 text-muted">
           Здесь вы записываете клиентов и оплаты, а сервис показывает выручку, конверсию, источники и то, сколько клиентов принёс план.
         </p>

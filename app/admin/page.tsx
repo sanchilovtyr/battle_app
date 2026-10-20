@@ -13,10 +13,11 @@ import AdminBlogTab from "@/components/AdminBlogTab";
 import AdminSeoTab from "@/components/AdminSeoTab";
 import AdminMonitorTab from "@/components/AdminMonitorTab";
 import AdminPromoTab from "@/components/AdminPromoTab";
+import AdminRiskTemplatesTab from "@/components/AdminRiskTemplatesTab";
 import AdminSearchEnginesTab from "@/components/AdminSearchEnginesTab";
 import ScrollTabs from "@/components/ScrollTabs";
 
-type Tab = "search-engines" | "users" | "modules" | "vectors" | "growth-points" | "revenue" | "messages" | "news" | "blog" | "seo" | "monitor" | "promo";
+type Tab = "search-engines" | "users" | "modules" | "vectors" | "growth-points" | "revenue" | "messages" | "news" | "blog" | "seo" | "monitor" | "risk-templates" | "promo";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "users", label: "Пользователи" },
@@ -28,6 +29,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "blog", label: "Блог (SEO)" },
   { id: "seo", label: "SEO-монитор" },
   { id: "monitor", label: "Мониторинг рисков" },
+  { id: "risk-templates", label: "Типовые угрозы" },
   { id: "search-engines", label: "Яндекс и Google" },
   { id: "promo", label: "Промокоды" },
   { id: "revenue", label: "Выручка" },
@@ -157,6 +159,7 @@ export default function AdminPage() {
           />
         )}
         {tab === "monitor" && <AdminMonitorTab />}
+        {tab === "risk-templates" && <AdminRiskTemplatesTab />}
         {tab === "search-engines" && <AdminSearchEnginesTab />}
         {tab === "promo" && <AdminPromoTab />}
         {tab === "revenue" && <AdminRevenueTab />}

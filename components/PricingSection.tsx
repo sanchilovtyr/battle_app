@@ -15,6 +15,9 @@ interface AppliedPromo {
   text: string;
 }
 
+/** Сколько пунктов тарифа видно сразу; остальные раскрываются по кнопке. */
+const VISIBLE_FEATURES = 5;
+
 const fmtRub = (n: number) => `${n.toLocaleString("ru-RU").replace(/\u00a0/g, " ")} ₽`;
 
 export default function PricingSection() {
@@ -22,6 +25,7 @@ export default function PricingSection() {
   const [notice, setNotice] = useState<{ planId: string; text: string } | null>(null);
   const [pendingPlan, setPendingPlan] = useState<PricingPlan | null>(null);
   const [paying, setPaying] = useState(false);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [promoOpen, setPromoOpen] = useState(false);
   const [promoInput, setPromoInput] = useState("");
   const [promoBusy, setPromoBusy] = useState(false);
@@ -154,14 +158,27 @@ export default function PricingSection() {
                 </>
               )}
             </div>
-            <ul className="mb-6 flex-1 space-y-2.5">
-              {plan.features.map((f, i) => (
-                <li key={i} className="flex gap-2 text-sm">
-                  <span className={plan.highlighted ? "text-brand" : "text-violet"}>✓</span>
-                  <span>{f}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="mb-6 flex-1">
+              <ul id={`features-${plan.id}`} className="space-y-2.5">
+                {(expanded[plan.id] ? plan.features : plan.features.slice(0, VISIBLE_FEATURES)).map((f, i) => (
+                  <li key={i} className="flex gap-2 text-sm">
+                    <span className={plan.highlighted ? "text-brand" : "text-violet"}>✓</span>
+                    <span>{f}</span>
+                  </li>
+                ))}
+              </ul>
+              {plan.features.length > VISIBLE_FEATURES && (
+                <button
+                  type="button"
+                  onClick={() => setExpanded((e) => ({ ...e, [plan.id]: !e[plan.id] }))}
+                  aria-expanded={!!expanded[plan.id]}
+                  aria-controls={`features-${plan.id}`}
+                  className={`mt-3 text-sm font-medium underline underline-offset-4 ${plan.highlighted ? "text-brand hover:text-white" : "text-violet hover:text-ink-900"}`}
+                >
+                  {expanded[plan.id] ? "Свернуть" : `Показать все возможности (ещё ${plan.features.length - VISIBLE_FEATURES})`}
+                </button>
+              )}
+            </div>
             <button
               onClick={() => openConfirm(plan)}
               disabled={paying}

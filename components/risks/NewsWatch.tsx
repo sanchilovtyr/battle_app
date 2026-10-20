@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { Risk } from "@/lib/risksCore";
+import type { Risk, RiskTemplate } from "@/lib/risksCore";
 import { matchNews } from "@/lib/monitorCore";
 import { keywordsForRisk } from "@/lib/riskWatch";
 
@@ -19,7 +19,7 @@ const fmt = (iso: string): string => {
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" });
 };
 
-export default function NewsWatch({ risks }: { risks: Risk[] }) {
+export default function NewsWatch({ risks, templates }: { risks: Risk[]; templates?: RiskTemplate[] }) {
   const [items, setItems] = useState<Item[] | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -38,10 +38,10 @@ export default function NewsWatch({ risks }: { risks: Risk[] }) {
     if (!items) return [];
     return risks
       .filter((r) => r.status !== "controlled")
-      .map((r) => ({ risk: r, hits: matchNews(items, keywordsForRisk(r), 3) }))
+      .map((r) => ({ risk: r, hits: matchNews(items, keywordsForRisk(r, templates), 3) }))
       .filter((g) => g.hits.length > 0)
       .slice(0, 8);
-  }, [items, risks]);
+  }, [items, risks, templates]);
 
   if (failed || items === null) return null;
 

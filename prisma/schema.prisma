@@ -416,3 +416,24 @@ model CompetitorChange {
 
   @@index([businessId, detectedAt])
 }
+
+/// «Управление рисками»: библиотека типовых угроз. Встроенные записи лежат в коде; здесь — их правки и скрытие
+/// (builtin = true, id как у встроенной записи; пустой title — запись только скрыта) и новые записи администратора.
+model RiskTemplateRow {
+  id          String   @id
+  builtin     Boolean  @default(false)
+  hidden      Boolean  @default(false)
+  title       String   @default("")
+  category    String   @default("economy")
+  what        String   @default("")
+  signal      String   @default("")
+  measures    String   @default("")
+  plan        String   @default("")
+  probability Int      @default(3)
+  impact      Int      @default(3)
+  every       Int      @default(30)
+  keywords    String   @default("")
+  types       String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

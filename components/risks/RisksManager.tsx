@@ -18,6 +18,7 @@ import {
   RISK_STATUSES,
   RISK_STATUS_LABELS,
   Risk,
+  RiskTemplate,
   RiskCategory,
   RiskLevel,
   RiskStatus,
@@ -307,7 +308,19 @@ export default function RisksManager({ businessId, businessName, businessType, s
 
   const persist = (next: Risk[]) => setRisks(saveRisks(businessId, next));
 
-  const templates = useMemo(() => risksForBusiness(businessType), [businessType]);
+  // Библиотеку типовых угроз ведёт администратор; если сервер недоступен, берём встроенный список
+  const [library, setLibrary] = useState<RiskTemplate[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/risks/templates?businessType=${encodeURIComponent(businessType)}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d: { templates?: RiskTemplate[] | null }) => live && Array.isArray(d.templates) && setLibrary(d.templates))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [businessType]);
+  const templates = useMemo(() => library ?? risksForBusiness(businessType), [library, businessType]);
   const inRegistry = useMemo(() => new Set(risks.map((r) => r.templateId).filter(Boolean) as string[]), [risks]);
   const freeTemplates = templates.filter((t) => !inRegistry.has(t.id));
   const summary = useMemo(() => summarizeRisks(risks, now), [risks, now]);
@@ -315,7 +328,7 @@ export default function RisksManager({ businessId, businessName, businessType, s
   const full = risks.length >= MAX_RISKS;
 
   const addTemplate = (id: string) => {
-    const tpl = findTemplate(id, businessType);
+    const tpl = templates.find((x) => x.id === id) ?? findTemplate(id, businessType);
     if (!tpl || full || inRegistry.has(id)) return;
     persist([riskFromTemplate(tpl, new Date(), newId), ...risks]);
   };
@@ -573,7 +586,7 @@ export default function RisksManager({ businessId, businessName, businessType, s
         {full && <p className="mt-2 text-xs text-muted">В реестре максимум {MAX_RISKS} угроз. Удалите неактуальные, чтобы добавить новые.</p>}
       </section>
 
-      <NewsWatch risks={risks} />
+      <NewsWatch risks={risks} templates={templates} />
 
       <CompetitorWatch businessId={businessId} syncTick={syncTick} hasCompetitorRisk={inRegistry.has("x-competitor-usp")} onAddRisk={() => addTemplate("x-competitor-usp")} />
 

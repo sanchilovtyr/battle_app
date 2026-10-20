@@ -36,10 +36,13 @@ export const TEMPLATE_KEYWORDS: Record<string, string[]> = {
   "x-labor-market": ["рынок труда", "дефицит кадр", "зарплат", "кадров", "миграц"],
 };
 
-/** Свои слова пользователя (через запятую) важнее подсказок. */
-export function keywordsForRisk(risk: Pick<Risk, "category" | "templateId" | "watch">): string[] {
+/** Порядок: слова пользователя, слова администратора из библиотеки, встроенные слова угрозы, слова категории. */
+export function keywordsForRisk(risk: Pick<Risk, "category" | "templateId" | "watch">, templates?: { id: string; keywords?: string }[]): string[] {
   const own = parseKeywords(risk.watch);
   if (own.length) return own;
+  // Слова, которые администратор задал в библиотеке угроз, точнее встроенных
+  const fromAdmin = parseKeywords(templates?.find((t) => t.id === risk.templateId)?.keywords);
+  if (fromAdmin.length) return fromAdmin;
   const byTemplate = risk.templateId ? TEMPLATE_KEYWORDS[risk.templateId] : undefined;
   return parseKeywords((byTemplate ?? CATEGORY_KEYWORDS[risk.category] ?? []).join(","));
 }

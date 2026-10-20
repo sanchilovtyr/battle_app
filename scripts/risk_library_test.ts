@@ -1,7 +1,7 @@
 // Запуск: npx tsx scripts/risk_library_test.ts  (библиотека типовых угроз под управлением администратора)
 import { builtinEntries, mergeLibrary, libraryForBusiness, resolveTypeKey, parseTemplateInput, type TemplateRow } from "@/lib/riskLibrary";
 import { keywordsForRisk } from "@/lib/riskWatch";
-import { risksForBusiness } from "@/lib/risksCore";
+import { risksForBusiness, applyTemplate, riskFromTemplate, type Risk } from "@/lib/risksCore";
 
 let fails = 0;
 const ok = (c: boolean, msg: string) => { if (!c) { fails++; console.log("FAIL:", msg); } else console.log("ok  :", msg); };
@@ -53,6 +53,14 @@ for (const bad of [{ ...good, title: "ab" }, { ...good, category: "nope" }, { ..
 }
 const long = parseTemplateInput({ ...good, measures: "я".repeat(5000), keywords: "я".repeat(900) });
 ok(long.ok && long.value.measures.length === 1500, "ввод: длинные тексты обрезаются");
+
+// пользователь не меняет содержание: оно берётся из библиотеки администратора, личное (статус, срок проверки) остаётся
+const baseTpl = builtinEntries().find((e) => e.id === "x-currency")!;
+const mine: Risk = { ...riskFromTemplate(baseTpl, new Date("2026-10-20T09:00:00Z"), () => "r1"), status: "mitigating", title: "Подделанное название", plan: "Подделанный план", probability: 1, impact: 1 };
+const live = applyTemplate(mine, { ...baseTpl, title: "Новое название от администратора", plan: "План от администратора", probability: 5, impact: 5, every: 7 });
+ok(live.title === "Новое название от администратора" && live.plan === "План от администратора" && live.probability === 5 && live.impact === 5 && live.reviewEveryDays === 7, "содержание угрозы берётся из библиотеки, сохранённая подделка не действует");
+ok(live.status === "mitigating" && live.id === "r1" && live.reviewAt === mine.reviewAt, "статус и даты пользователя сохраняются");
+ok(applyTemplate({ ...mine, templateId: undefined }, undefined).title === "Подделанное название", "угроза без записи в библиотеке показывается как сохранена");
 
 console.log(fails === 0 ? "\nВСЕ ТЕСТЫ ПРОШЛИ" : `\nПРОВАЛЕНО: ${fails}`);
 process.exit(fails ? 1 : 0);

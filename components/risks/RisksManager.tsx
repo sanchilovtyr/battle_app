@@ -18,13 +18,13 @@ import {
   RISK_STATUSES,
   RISK_STATUS_LABELS,
   Risk,
+  applyTemplate,
   RiskTemplate,
   RiskCategory,
   RiskLevel,
   RiskStatus,
   StressRow,
   clampPeriod,
-  clampScale,
   findTemplate,
   heatGrid,
   isReviewDue,
@@ -176,61 +176,6 @@ const CATEGORY_OPTIONS = RISK_CATEGORIES.map((c) => ({ value: c as RiskCategory,
 const STATUS_OPTIONS = RISK_STATUSES.map((s) => ({ value: s as RiskStatus, label: RISK_STATUS_LABELS[s] }));
 const PERIOD_OPTIONS = REVIEW_PERIODS.map((d) => ({ value: d, label: REVIEW_PERIOD_LABELS[d] ?? `Раз в ${d} дн.` }));
 
-function RiskEditor({ risk, onSave, onCancel }: { risk: Risk; onSave: (r: Risk) => void; onCancel: () => void }) {
-  const [d, setD] = useState<Risk>(risk);
-  const set = <K extends keyof Risk>(k: K, v: Risk[K]) => setD((p) => ({ ...p, [k]: v }));
-  const valid = d.title.trim().length > 0;
-  return (
-    <div className="mt-3 space-y-3 rounded-xl bg-soft p-4">
-      <label className="block text-sm">
-        <span className="mb-1 block text-xs text-muted">Что может случиться</span>
-        <input className={inputCls} value={d.title} maxLength={200} onChange={(e) => set("title", e.target.value)} />
-      </label>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Select label="Категория" value={d.category} options={CATEGORY_OPTIONS} onChange={(v) => set("category", v)} />
-        <Select label="Статус" value={d.status} options={STATUS_OPTIONS} onChange={(v) => set("status", v)} />
-        <Select label="Вероятность" value={d.probability} options={PROB_OPTIONS} onChange={(v) => set("probability", clampScale(v))} />
-        <Select label="Влияние на бизнес, если случится" value={d.impact} options={IMPACT_OPTIONS} onChange={(v) => set("impact", clampScale(v))} />
-      </div>
-      <label className="block text-sm">
-        <span className="mb-1 block text-xs text-muted">За чем следим: где и по каким признакам заметите, что угроза приближается</span>
-        <textarea className={inputCls} rows={2} maxLength={600} value={d.signal ?? ""} onChange={(e) => set("signal", e.target.value)} />
-      </label>
-      <label className="block text-sm">
-        <span className="mb-1 block text-xs text-muted">Как готовимся заранее</span>
-        <textarea className={inputCls} rows={3} maxLength={1500} value={d.measures ?? ""} onChange={(e) => set("measures", e.target.value)} />
-      </label>
-      <label className="block text-sm">
-        <span className="mb-1 block text-xs text-muted">План Б: что делаем в первые дни, если угроза наступила</span>
-        <textarea className={inputCls} rows={3} maxLength={1500} value={d.plan ?? ""} onChange={(e) => set("plan", e.target.value)} />
-      </label>
-      <label className="block text-sm">
-        <span className="mb-1 block text-xs text-muted">Ключевые слова для подбора новостей (через запятую; необязательно)</span>
-        <input className={inputCls} maxLength={300} placeholder="Например: маркировка рекламы, штраф, роскомнадзор" value={d.watch ?? ""} onChange={(e) => set("watch", e.target.value)} />
-      </label>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Select label="Как часто проверять" value={clampPeriod(d.reviewEveryDays)} options={PERIOD_OPTIONS} onChange={(v) => set("reviewEveryDays", v)} />
-      </div>
-      <label className="block text-sm">
-        <span className="mb-1 block text-xs text-muted">Заметка (необязательно)</span>
-        <textarea className={inputCls} rows={2} maxLength={600} value={d.note ?? ""} onChange={(e) => set("note", e.target.value)} />
-      </label>
-      <div className="flex flex-wrap gap-2">
-        <button
-          disabled={!valid}
-          onClick={() => onSave({ ...d, title: d.title.trim() })}
-          className="rounded-full bg-ink-900 px-5 py-2 text-sm font-medium text-white hover:bg-ink-800 disabled:opacity-40"
-        >
-          Сохранить
-        </button>
-        <button onClick={onCancel} className="rounded-full border border-line px-5 py-2 text-sm text-ink-900/75 hover:bg-white">
-          Отмена
-        </button>
-      </div>
-    </div>
-  );
-}
-
 const STRESS_TEXT: Record<string, { tone: string; label: string }> = {
   good: { tone: "text-emerald-700", label: "Выдерживает" },
   weak: { tone: "text-amber-800", label: "Запас небольшой" },
@@ -280,9 +225,7 @@ function StressTable({ rows }: { rows: StressRow[] }) {
 /** Управление рисками: внешние угрозы (законы, конкуренты, политика, поставки, экономика) — реестр, проверки по расписанию и стресс-тест. */
 export default function RisksManager({ businessId, businessName, businessType, snapshots, syncTick }: Props) {
   const [risks, setRisks] = useState<Risk[]>([]);
-  const [editing, setEditing] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
   const [now, setNow] = useState<Date>(() => new Date());
   const [stress, setStress] = useState<ReturnType<typeof stressTest>>(null);
 
@@ -323,8 +266,10 @@ export default function RisksManager({ businessId, businessName, businessType, s
   const templates = useMemo(() => library ?? risksForBusiness(businessType), [library, businessType]);
   const inRegistry = useMemo(() => new Set(risks.map((r) => r.templateId).filter(Boolean) as string[]), [risks]);
   const freeTemplates = templates.filter((t) => !inRegistry.has(t.id));
-  const summary = useMemo(() => summarizeRisks(risks, now), [risks, now]);
-  const sorted = useMemo(() => sortRisks(risks), [risks]);
+  // Содержание угроз (название, оценка, подготовка, план Б, период) берётся из библиотеки администратора
+  const view = useMemo(() => risks.map((r) => applyTemplate(r, templates.find((t) => t.id === r.templateId))), [risks, templates]);
+  const summary = useMemo(() => summarizeRisks(view, now), [view, now]);
+  const sorted = useMemo(() => sortRisks(view), [view]);
   const full = risks.length >= MAX_RISKS;
 
   const addTemplate = (id: string) => {
@@ -341,39 +286,23 @@ export default function RisksManager({ businessId, businessName, businessType, s
     setShowLibrary(false);
   };
 
-  const addCustom = () => {
-    const title = newTitle.trim();
-    if (!title || full) return;
+  /** Отметка «проверил»: следующая проверка отсчитывается от сегодня. */
+  const markChecked = (r: Risk) => {
     const at = new Date();
-    const base: Risk = {
-      id: newId(),
-      createdAt: at.toISOString(),
-      updatedAt: at.toISOString(),
-      title: title.slice(0, 200),
-      category: "economy",
-      probability: 3,
-      impact: 3,
-      status: "open",
-      reviewEveryDays: DEFAULT_REVIEW_DAYS,
-    };
-    const r = { ...base, reviewAt: nextReviewAt(base, at) };
-    persist([r, ...risks]);
-    setNewTitle("");
-    setEditing(r.id);
+    persist(risks.map((x) => (x.id === r.id ? { ...x, updatedAt: at.toISOString(), reviewAt: nextReviewAt(r, at) } : x)));
+    setNow(at);
   };
 
-  /** Сохранение правок и отметка «проверил»: следующая проверка отсчитывается от сегодня. */
-  const saveOne = (r: Risk) => {
+  /** Статус — личная отметка пользователя о том, как он готовится. */
+  const setStatus = (r: Risk, status: RiskStatus) => {
     const at = new Date();
-    const next: Risk = { ...r, updatedAt: at.toISOString(), reviewAt: nextReviewAt(r, at) };
-    persist(risks.map((x) => (x.id === r.id ? next : x)));
-    setEditing(null);
+    const next = { ...r, status };
+    persist(risks.map((x) => (x.id === r.id ? { ...x, status, updatedAt: at.toISOString(), reviewAt: nextReviewAt(next, at) } : x)));
     setNow(at);
   };
 
   const remove = (id: string) => {
     persist(risks.filter((r) => r.id !== id));
-    if (editing === id) setEditing(null);
   };
 
   return (
@@ -397,7 +326,7 @@ export default function RisksManager({ businessId, businessName, businessType, s
           <h2 id="rk-soon" className="font-display text-base text-ink-900">
             Что проверить в ближайшие дни
           </h2>
-          <p className="mt-0.5 text-xs text-muted">Посмотрите источники, отметьте «проверил», если ничего не изменилось, или обновите оценку.</p>
+          <p className="mt-0.5 text-xs text-muted">Посмотрите источники, отметьте «проверил», если ничего не изменилось.</p>
           <ul className="mt-3 space-y-3">
             {summary.checkSoon.map((r) => (
               <li key={r.id} className="rounded-xl bg-white p-4">
@@ -409,11 +338,8 @@ export default function RisksManager({ businessId, businessName, businessType, s
                   </p>
                 )}
                 <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
-                  <button onClick={() => saveOne(r)} className="rounded-full bg-ink-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-ink-800">
+                  <button onClick={() => markChecked(r)} className="rounded-full bg-ink-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-ink-800">
                     Проверил, без изменений
-                  </button>
-                  <button onClick={() => setEditing(r.id)} className="text-sm text-violet underline underline-offset-4 hover:text-ink-900">
-                    Изменить оценку
                   </button>
                   <span className={`text-xs ${isReviewDue(r, now) ? "font-medium text-amber-800" : "text-muted"}`}>
                     {isReviewDue(r, now) ? "Срок был " : "Срок "}
@@ -426,7 +352,7 @@ export default function RisksManager({ businessId, businessName, businessType, s
         </section>
       )}
 
-      {risks.length > 0 && <HeatMap risks={risks} />}
+      {view.length > 0 && <HeatMap risks={view} />}
 
       <section aria-labelledby="rk-registry" className="mb-6 rounded-2xl border border-line bg-white p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -440,7 +366,7 @@ export default function RisksManager({ businessId, businessName, businessType, s
 
         {risks.length === 0 && (
           <p className="mt-3 rounded-xl bg-soft p-4 text-sm text-ink-900/80">
-            Пока пусто. Начните с типовых угроз для вашего типа бизнеса: добавьте те, что актуальны, и оцените вероятность и влияние. Потом допишите свои.
+            Пока пусто. Начните с типовых угроз для вашего типа бизнеса: добавьте те, что актуальны для вас, и отмечайте, как вы к ним готовитесь.
             {freeTemplates.length > 0 && (
               <button onClick={addAll} className="ml-2 font-medium text-violet underline underline-offset-4 hover:text-ink-900">
                 Добавить все {freeTemplates.length}
@@ -456,7 +382,7 @@ export default function RisksManager({ businessId, businessName, businessType, s
             ) : (
               <>
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <p className="text-xs text-muted">Оценки в шаблонах ориентировочные. Поправьте их под свой бизнес.</p>
+                  <p className="text-xs text-muted">Оценки в списке ориентировочные: это подсказки сервиса, а не прогноз.</p>
                   <button onClick={addAll} disabled={full} className="text-sm text-violet underline underline-offset-4 hover:text-ink-900 disabled:opacity-40">
                     Добавить все
                   </button>
@@ -489,7 +415,6 @@ export default function RisksManager({ businessId, businessName, businessType, s
           <ul className="mt-4 space-y-3">
             {sorted.map((r) => {
               const due = isReviewDue(r, now);
-              const isEditing = editing === r.id;
               const noPlan = r.status !== "controlled" && riskLevel(riskScore(r)) !== "low" && !(r.measures ?? "").trim() && !(r.plan ?? "").trim();
               return (
                 <li key={r.id} className={`rounded-xl border p-4 ${r.status === "controlled" ? "border-line bg-soft/60" : "border-line"}`}>
@@ -500,93 +425,73 @@ export default function RisksManager({ businessId, businessName, businessType, s
                         {RISK_CATEGORY_LABELS[r.category]} · вероятность {r.probability}/5 · влияние {r.impact}/5
                       </p>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <LevelBadge risk={r} />
-                      <span className="rounded-full bg-soft px-2.5 py-0.5 text-xs text-ink-900/80">{RISK_STATUS_LABELS[r.status]}</span>
-                    </div>
+                    <LevelBadge risk={r} />
                   </div>
 
-                  {!isEditing && (
-                    <>
-                      {r.signal && (
-                        <p className="mt-2 text-sm text-ink-900/80">
-                          <span className="text-muted">За чем следим: </span>
-                          {r.signal}
-                        </p>
-                      )}
-                      {r.measures && (
-                        <p className="mt-1 whitespace-pre-wrap text-sm text-ink-900/80">
-                          <span className="text-muted">Готовимся: </span>
-                          {r.measures}
-                        </p>
-                      )}
-                      {r.plan && (
-                        <p className="mt-1 whitespace-pre-wrap text-sm text-ink-900/80">
-                          <span className="text-muted">План Б: </span>
-                          {r.plan}
-                        </p>
-                      )}
-                      {noPlan && <p className="mt-1 text-sm text-amber-800">Нет ни подготовки, ни плана Б. Запишите хотя бы первые шаги.</p>}
-                      {r.note && <p className="mt-1 text-xs text-muted">{r.note}</p>}
-                      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-                        <button onClick={() => setEditing(r.id)} className="text-violet underline underline-offset-4 hover:text-ink-900">
-                          Изменить
-                        </button>
-                        {due && (
-                          <button onClick={() => saveOne(r)} className="text-amber-800 underline underline-offset-4 hover:text-ink-900">
-                            Проверил, без изменений
-                          </button>
-                        )}
-                        <button
-                          onClick={() => {
-                            if (window.confirm("Удалить угрозу из реестра?")) remove(r.id);
-                          }}
-                          className="text-muted underline underline-offset-4 hover:text-ink-900"
-                        >
-                          Удалить
-                        </button>
-                        {r.reviewAt && r.status !== "controlled" && (
-                          <span className={`text-xs ${due ? "font-medium text-amber-800" : "text-muted"}`}>
-                            {due ? "Пора проверить, срок был " : `${REVIEW_PERIOD_LABELS[clampPeriod(r.reviewEveryDays)] ?? "Проверка"}, следующая `}
-                            {fmtDate(r.reviewAt)}
-                          </span>
-                        )}
-                      </div>
-                    </>
+                  {r.signal && (
+                    <p className="mt-2 text-sm text-ink-900/80">
+                      <span className="text-muted">За чем следим: </span>
+                      {r.signal}
+                    </p>
                   )}
-                  {isEditing && <RiskEditor risk={r} onSave={saveOne} onCancel={() => setEditing(null)} />}
+                  {r.measures && (
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-ink-900/80">
+                      <span className="text-muted">Готовимся: </span>
+                      {r.measures}
+                    </p>
+                  )}
+                  {r.plan && (
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-ink-900/80">
+                      <span className="text-muted">План Б: </span>
+                      {r.plan}
+                    </p>
+                  )}
+                  {noPlan && <p className="mt-1 text-sm text-amber-800">Для этой угрозы пока нет ни подготовки, ни плана Б.</p>}
+                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                    <label className="flex items-center gap-2 text-xs text-muted">
+                      Статус
+                      <select
+                        value={r.status}
+                        onChange={(e) => setStatus(r, e.target.value as RiskStatus)}
+                        className="rounded-lg border border-line bg-white px-2 py-1 text-sm text-ink-900 focus:border-ink-900 focus:outline-none"
+                      >
+                        {RISK_STATUSES.map((st) => (
+                          <option key={st} value={st}>
+                            {RISK_STATUS_LABELS[st]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {due && (
+                      <button onClick={() => markChecked(r)} className="text-amber-800 underline underline-offset-4 hover:text-ink-900">
+                        Проверил, без изменений
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        if (window.confirm("Убрать угрозу из вашего реестра? Её можно будет добавить снова из типовых.")) remove(r.id);
+                      }}
+                      className="text-muted underline underline-offset-4 hover:text-ink-900"
+                    >
+                      Убрать из реестра
+                    </button>
+                    {r.reviewAt && r.status !== "controlled" && (
+                      <span className={`text-xs ${due ? "font-medium text-amber-800" : "text-muted"}`}>
+                        {due ? "Пора проверить, срок был " : `${REVIEW_PERIOD_LABELS[clampPeriod(r.reviewEveryDays)] ?? "Проверка"}, следующая `}
+                        {fmtDate(r.reviewAt)}
+                      </span>
+                    )}
+                  </div>
                 </li>
               );
             })}
           </ul>
         )}
 
-        <div className="mt-5 flex flex-wrap items-end gap-2 border-t border-line pt-4">
-          <label className="min-w-[220px] flex-1 text-sm">
-            <span className="mb-1 block text-xs text-muted">Своя угроза</span>
-            <input
-              className={inputCls}
-              placeholder="Например: запрет на ввоз основного товара"
-              value={newTitle}
-              maxLength={200}
-              onChange={(e) => setNewTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") addCustom();
-              }}
-            />
-          </label>
-          <button
-            onClick={addCustom}
-            disabled={!newTitle.trim() || full}
-            className="rounded-full bg-ink-900 px-5 py-2 text-sm font-medium text-white hover:bg-ink-800 disabled:opacity-40"
-          >
-            Добавить
-          </button>
-        </div>
-        {full && <p className="mt-2 text-xs text-muted">В реестре максимум {MAX_RISKS} угроз. Удалите неактуальные, чтобы добавить новые.</p>}
+        {full && <p className="mt-2 text-xs text-muted">В реестре максимум {MAX_RISKS} угроз. Уберите неактуальные, чтобы добавить новые.</p>}
       </section>
 
-      <NewsWatch risks={risks} templates={templates} />
+      <NewsWatch risks={view} templates={templates} />
 
       <CompetitorWatch businessId={businessId} syncTick={syncTick} hasCompetitorRisk={inRegistry.has("x-competitor-usp")} onAddRisk={() => addTemplate("x-competitor-usp")} />
 

@@ -464,6 +464,22 @@ export function findTemplate(id: string, businessType?: string): RiskTemplate | 
   return risksForBusiness(businessType).find((x) => x.id === id) ?? UNIVERSAL_RISKS.find((x) => x.id === id);
 }
 
+/** Содержание угрозы из библиотеки (её ведёт администратор) подменяет сохранённое: пользователь содержание не меняет. */
+export function applyTemplate(r: Risk, tpl: RiskTemplate | undefined): Risk {
+  if (!tpl) return r;
+  return {
+    ...r,
+    title: tpl.title,
+    category: tpl.category,
+    probability: clampScale(tpl.probability),
+    impact: clampScale(tpl.impact),
+    signal: tpl.signal || undefined,
+    measures: tpl.measures || undefined,
+    plan: tpl.plan || undefined,
+    reviewEveryDays: clampPeriod(tpl.every),
+  };
+}
+
 export function riskFromTemplate(tpl: RiskTemplate, now: Date, idGen: () => string): Risk {
   return {
     id: idGen(),

@@ -26,6 +26,7 @@ export async function GET() {
       target: b.targetJson ?? {},
       clients: b.crmJson ?? [],
       unit: b.unitJson ?? {},
+      risks: b.risksJson ?? [],
     })),
   });
 }

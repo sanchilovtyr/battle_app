@@ -3,6 +3,8 @@ import { timingSafeEqual } from "crypto";
 import { runSeoAudit, sendSeoDigest } from "@/lib/seoRun";
 import { pingPendingPosts } from "@/lib/indexnow";
 import { runInactivityCleanup } from "@/lib/inactivity";
+import { runCompetitorChecks, runSourceFetch } from "@/lib/monitorRun";
+import { defaultDeps } from "@/lib/monitorStore";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -43,7 +45,15 @@ export async function POST(req: Request) {
     } catch (e) {
       console.error("Неактивные аккаунты: ошибка очистки", e);
     }
-    return NextResponse.json({ ok: true, result, digest, indexNow, inactivity });
+    // И мониторинг внешних угроз для «Управления рисками» (ленты и сайты конкурентов)
+    let monitor = null;
+    try {
+      const deps = defaultDeps();
+      monitor = { sources: await runSourceFetch(deps), competitors: await runCompetitorChecks(deps, { limit: 30, budgetMs: 25_000 }) };
+    } catch (e) {
+      console.error("Мониторинг рисков: ошибка запуска", e);
+    }
+    return NextResponse.json({ ok: true, result, digest, indexNow, inactivity, monitor });
   } catch (e) {
     console.error("SEO-монитор: ошибка проверки по расписанию", e);
     return NextResponse.json({ error: "Ошибка проверки" }, { status: 500 });

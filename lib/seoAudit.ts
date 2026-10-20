@@ -1032,9 +1032,17 @@ export function auditHomeStructured(html: string): RawIssue[] {
   ];
 }
 
-export function computeScore(issues: { severity: string }[]): number {
-  const n = (s: string) => issues.filter((i) => i.severity === s).length;
+export function computeScore(list: { severity: string }[]): number {
+  // Считаем циклом, без вложенных функций: минификатор сборки ломал замыкание над аргументом
+  let critical = 0;
+  let warning = 0;
+  let info = 0;
+  for (const item of list) {
+    if (item.severity === "critical") critical++;
+    else if (item.severity === "warning") warning++;
+    else if (item.severity === "info") info++;
+  }
   // Ограничиваем вклад мелочей, чтобы десяток замечаний «info» не обнулял оценку
-  const penalty = Math.min(n("critical") * 15, 60) + Math.min(n("warning") * 4, 40) + Math.min(n("info"), 15);
+  const penalty = Math.min(critical * 15, 60) + Math.min(warning * 4, 40) + Math.min(info, 15);
   return Math.max(0, 100 - penalty);
 }

@@ -9,8 +9,9 @@ const ITEMS = [
   { slug: "dashboard", label: "Дашборд динамики", icon: "◔" },
   { slug: "losses", label: "Где вы теряете клиентов", icon: "▽" },
   { slug: "growth", label: "Точки роста компании", icon: "↗" },
-  { slug: "clients", label: "Клиенты (CRM)", icon: "☷" },
+  { slug: "risks", label: "Управление рисками", icon: "⚠" },
   { slug: "unit-economics", label: "Юнит-экономика", icon: "∑" },
+  { slug: "clients", label: "Клиенты (CRM)", icon: "☷" },
 ];
 
 /** Левое меню разделов плана (десктоп) и горизонтальная полоса под шапкой (мобильный). */

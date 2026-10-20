@@ -14,7 +14,8 @@ export async function POST() {
   // (если оно было включено) тоже перестанет работать, пока клиент не оплатит заново
   await prisma.subscription.update({
     where: { userId: user.id },
-    data: { paymentMethodId: null },
+    // Без карты автопродление невозможно, поэтому подписка переходит в «отменена»: доступ сохраняется до конца оплаченного периода
+    data: { paymentMethodId: null, status: "cancelled" },
   });
 
   return NextResponse.json({ ok: true });

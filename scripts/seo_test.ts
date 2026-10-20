@@ -463,6 +463,93 @@ ok(pendingPosts([pp({ published: false })], now).length === 0 && pendingPosts([p
     ok(Bc.sanitizeClients(Array.from({ length: 400 }, (_, i) => ({ id: "c" + i, name: "n" }))).length === 300, "CRM-сервер: не больше 300 клиентов");
     ok(Bc.sanitizePatch({ clients: [{ id: "z", name: "Я" }] }).clients?.length === 1 && Bc.sanitizePatch({ name: "x" }).clients === undefined, "CRM-сервер: отсутствующее поле не затирается");
   }
+  // ── управление рисками (внешние угрозы) ──
+  {
+    const R = await import("../lib/risksCore");
+    const Br = await import("../lib/businessSync");
+    const P = await import("../lib/plans");
+    const nowR = new Date("2026-10-19T12:00:00Z");
+    type RiskT = import("../lib/risksCore").Risk;
+    const mk = (o: Partial<RiskT>): RiskT => ({
+      id: "r" + Math.random(), createdAt: "2026-10-01T00:00:00Z", updatedAt: "2026-10-01T00:00:00Z", title: "Угроза", category: "legal",
+      probability: 3, impact: 3, status: "open", ...o,
+    });
+    ok(R.riskScore({ probability: 4, impact: 5 }) === 20 && R.riskLevel(20) === "high" && R.riskLevel(15) === "high", "риски: 4×5=20 — высокий, порог высокого 15");
+    ok(R.riskLevel(14) === "medium" && R.riskLevel(8) === "medium" && R.riskLevel(7) === "low" && R.riskLevel(1) === "low", "риски: границы среднего (8–14) и низкого");
+    ok(R.riskScore({ probability: 9, impact: -3 }) === 5 && R.clampScale("мусор") === 3, "риски: шкала зажата в 1…5, мусор → 3");
+    ok(R.clampPeriod(14) === 14 && R.clampPeriod(5) === 30 && R.clampPeriod("x") === 30, "риски: периодичность — только из списка, иначе раз в месяц");
+
+    const all = Object.values(R.NICHE_RISKS).flat().concat(R.UNIVERSAL_RISKS);
+    ok(new Set(all.map((x) => x.id)).size === all.length, "риски: id типовых угроз уникальны");
+    ok(all.every((x) => x.title && x.what && x.signal && x.measures && x.plan && x.probability >= 1 && x.probability <= 5 && x.impact >= 1 && x.impact <= 5), "риски: у каждой типовой угрозы есть тексты (за чем следим, подготовка, план Б) и оценки 1–5");
+    ok(all.every((x) => R.RISK_CATEGORIES.includes(x.category) && R.REVIEW_PERIODS.includes(x.every)), "риски: категории и периодичность типовых угроз допустимы");
+    ok(!all.some((x) => /meta|facebook|instagram|инстаграм|фейсбук/i.test(x.title + x.what + x.signal + x.measures + x.plan)), "риски: в базе нет продуктов Meta");
+    const cats = new Set(R.UNIVERSAL_RISKS.map((x) => x.category));
+    ok(["legal", "competitors", "politics", "supply", "economy", "society", "platforms", "force"].every((c) => cats.has(c as import("../lib/risksCore").RiskCategory)), "риски: универсальная база покрывает все 8 внешних категорий");
+    ok(R.UNIVERSAL_RISKS.some((x) => /границ/i.test(x.title)) && R.UNIVERSAL_RISKS.some((x) => /нов\S* закон/i.test(x.title)) && R.UNIVERSAL_RISKS.some((x) => /конкурент добавил/i.test(x.title)), "риски: в базе есть закрытие границ, новые законы и новое УТП конкурента");
+    ok(!all.some((x) => /заявк|лид|воронк/i.test(x.title)), "риски: в названиях нет внутренних утечек воронки (это раздел «Где вы теряете клиентов»)");
+    for (const bt of ["retail", "services", "horeca", "b2b", "online_edu", "ecommerce", "other"] as const) {
+      ok(R.NICHE_RISKS[bt].length >= 2 && R.risksForBusiness(bt).length === R.UNIVERSAL_RISKS.length + R.NICHE_RISKS[bt].length, "риски: база для типа «" + bt + "» = универсальные + нишевые");
+    }
+    ok(R.risksForBusiness("неизвестно").length === R.UNIVERSAL_RISKS.length + R.NICHE_RISKS.other.length, "риски: неизвестный тип бизнеса → набор «другое»");
+    ok(R.risksForBusiness("Услуги").length === R.risksForBusiness("services").length && R.risksForBusiness("B2B").some((x) => x.id.startsWith("b-")), "риски: тип бизнеса, сохранённый подписью («Услуги», «B2B»), тоже находит свой набор");
+
+    const tpl = R.UNIVERSAL_RISKS.find((x) => x.id === "x-competitor-usp")!;
+    const fromTpl = R.riskFromTemplate(tpl, nowR, () => "id1");
+    ok(fromTpl.templateId === tpl.id && fromTpl.status === "open" && fromTpl.reviewEveryDays === 14 && fromTpl.reviewAt === "2026-11-02", "риски: из шаблона конкурентов — проверять раз в 2 недели (следующая 02.11)");
+    ok(!!fromTpl.plan && !!fromTpl.measures && !!fromTpl.signal, "риски: из шаблона переносятся «за чем следим», подготовка и план Б");
+    ok(R.nextReviewAt({ status: "controlled", reviewEveryDays: 7 }, nowR) === undefined && R.nextReviewAt({ status: "open", reviewEveryDays: 7 }, nowR) === "2026-10-26", "риски: у закрытого риска проверки нет, у открытого — через заданный срок");
+
+    const reg = [
+      mk({ id: "a", title: "A", probability: 5, impact: 5, plan: "действую" }),
+      mk({ id: "b", title: "B", probability: 3, impact: 3, reviewAt: "2026-10-24" }),
+      mk({ id: "c", title: "C", probability: 4, impact: 4, reviewAt: "2026-10-01" }),
+      mk({ id: "d", title: "D", probability: 5, impact: 5, status: "controlled", reviewAt: "2026-09-01" }),
+      mk({ id: "e", title: "E", probability: 1, impact: 2, reviewAt: "2026-12-01" }),
+    ];
+    const sum = R.summarizeRisks(reg, nowR);
+    ok(sum.total === 5 && sum.high === 2 && sum.medium === 1 && sum.low === 1 && sum.controlled === 1, "риски: сводка — 2 высоких, 1 средний, 1 низкий, 1 под контролем");
+    ok(sum.noPlan === 2, "риски: «без плана» — высокие и средние без подготовки и плана Б (B и C): " + sum.noPlan);
+    ok(sum.reviewDue === 1 && !R.isReviewDue(reg[3], nowR) && R.isReviewDue(reg[2], nowR), "риски: просрочена проверка только у активного риска C");
+    ok(sum.checkSoon.map((x) => x.id).join() === "c,b", "риски: «проверить на неделе» — просроченный C и B (24.10), без E и закрытого, просроченные первыми: " + sum.checkSoon.map((x) => x.id).join());
+    ok(sum.top.map((x) => x.id).join() === "a,c,b", "риски: топ-3 по опасности без закрытых");
+    ok(R.sortRisks(reg).map((x) => x.id).join() === "a,c,b,e,d", "риски: порядок — по оценке, закрытые в конце");
+    const g = R.heatGrid(reg);
+    ok(g[4][4] === 1 && g[3][3] === 1 && g[2][2] === 1 && g[1][0] === 1 && g.flat().reduce((x, y) => x + y, 0) === 4, "риски: тепловая карта считает только активные риски, влияние по строкам");
+
+    // стресс-тест по юнит-экономике
+    const base = { spend: 60000, customers: 20, avgCheck: 5000, marginPct: 40, purchases: 3 };
+    const st = R.stressTest(base)!;
+    ok(!!st && st.base.cac === 3000 && st.base.profitPerPurchase === 2000, "стресс: база — CAC 3 000, прибыль с покупки 2 000");
+    const row = (id: string) => st.rows.find((x) => x.id === id)!;
+    ok(row("cost20").profitPerPurchase === 1400, "стресс: себестоимость +20% (60%→72% от чека) — прибыль с покупки 5 000×28% = 1 400: " + row("cost20").profitPerPurchase);
+    ok(row("cost10").profitPerPurchase === 1700 && row("cost30").profitPerPurchase === 1100, "стресс: +10% → 1 700, +30% → 1 100");
+    ok(row("cac30").profitPerPurchase === 2000 && row("cac30").ltvCac === 1.5, "стресс: цена привлечения +30% — прибыль с покупки та же, LTV÷CAC 6 000 / 3 900 = 1,5");
+    ok(row("disc10").profitPerPurchase === 1500, "стресс: скидка 10% при той же себестоимости — 5 000×0,9 − 3 000 = 1 500: " + row("disc10").profitPerPurchase);
+    ok(row("cost30").verdict === "weak" && row("cac50").verdict === "weak" && st.rows.length === 6, "стресс: итоги по сценариям и 6 сценариев");
+    const harsh = R.stressTest({ ...base, marginPct: 20, purchases: 1 })!;
+    ok(harsh.rows.find((x) => x.id === "cost30")!.verdict === "loss" && harsh.rows.find((x) => x.id === "cost30")!.firstDealProfit !== null && harsh.rows.find((x) => x.id === "cost30")!.ltvCac === null, "стресс: разовая покупка — вместо LTV÷CAC считается прибыль с первой покупки, при +30% себестоимости уходит в минус");
+    ok(R.stressTest({ ...base, marginPct: null }) === null && R.stressTest({ ...base, spend: null }) === null && R.stressTest({ ...base, avgCheck: null }) === null, "стресс: без маржи, расходов или чека не считается");
+
+    // сервер
+    const san = Br.sanitizeRisks([
+      { id: "r1", title: "  Угроза  ", category: "bogus", probability: 9, impact: 0, status: "weird", signal: "s".repeat(900), measures: " м ", plan: " п ", reviewEveryDays: 14, reviewAt: "2026-11-01", templateId: "x-law-change" },
+      { id: "r1", title: "Дубль" },
+      { id: "r2", title: "" },
+      { id: "r3", title: "Третий", reviewAt: "завтра", reviewEveryDays: 5, templateId: "плохой id!" },
+      "мусор",
+    ]);
+    ok(san.length === 2, "риски-сервер: дубли и пустые названия отброшены: " + san.length);
+    ok(san[0].title === "Угроза" && san[0].category === "economy" && san[0].probability === 5 && san[0].impact === 1 && san[0].status === "open", "риски-сервер: поля очищены, шкала зажата, неизвестная категория → «экономика»");
+    ok(san[0].signal?.length === 600 && san[0].measures === "м" && san[0].plan === "п" && san[0].reviewEveryDays === 14 && san[0].reviewAt === "2026-11-01" && san[0].templateId === "x-law-change", "риски-сервер: тексты обрезаны, план Б, периодичность, дата и шаблон сохранены");
+    ok(san[1].reviewAt === undefined && san[1].templateId === undefined && san[1].reviewEveryDays === undefined, "риски-сервер: кривая дата, id шаблона и недопустимая периодичность отброшены");
+    ok(Br.sanitizeRisks(Array.from({ length: 90 }, (_, i) => ({ id: "x" + i, title: "t" }))).length === R.MAX_RISKS, "риски-сервер: не больше " + R.MAX_RISKS);
+    ok(Br.sanitizeRisks("мусор").length === 0 && Br.sanitizePatch({ name: "x" }).risks === undefined && Br.sanitizePatch({ risks: [{ id: "z", title: "Я" }] }).risks?.length === 1, "риски-сервер: не массив — пусто, отсутствующее поле не затирается");
+
+    // тарифы
+    ok(P.PLANS.filter((p) => p.risksAccess).map((p) => p.id).join() === "agency", "риски: доступ только на «Премиум»");
+    ok(P.getPlan("agency").features.some((f) => f.startsWith("Управление рисками")) && P.PLANS.filter((p) => p.id !== "agency").every((p) => !p.features.some((f) => f.startsWith("Управление рисками"))), "риски: строка в описании только у «Премиум»");
+  }
   // ── юнит-экономика ──
   {
     const U = await import("../lib/unitEconomicsCore");

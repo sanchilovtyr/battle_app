@@ -60,6 +60,15 @@ export default function Home() {
               <span className="before:mr-1.5 before:text-brand before:content-['✦']">
                 Маркетолог не нужен
               </span>
+              <span className="before:mr-1.5 before:text-brand before:content-['✦']">
+                Показывает новые законы и ходы конкурентов
+              </span>
+              <span className="before:mr-1.5 before:text-brand before:content-['✦']">
+                Управление рисками и план Б
+              </span>
+              <span className="before:mr-1.5 before:text-brand before:content-['✦']">
+                Юнит-экономика и лёгкая CRM
+              </span>
             </div>
             <div className="mt-6">
               <EngagementHook />

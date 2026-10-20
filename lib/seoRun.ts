@@ -81,19 +81,29 @@ export interface AuditResult {
  */
 export async function runSeoAudit(trigger: "manual" | "cron"): Promise<AuditResult> {
   const now = new Date();
-  const posts = (await prisma.blogPost.findMany({
-    select: {
-      id: true, slug: true, title: true, excerpt: true, body: true, coverAlt: true, hasCover: true,
-      metaTitle: true, metaDescription: true, keywords: true, authorName: true, indexNowAt: true, published: true, publishedAt: true,
-      createdAt: true, updatedAt: true,
-    },
-  })) as AuditPost[];
+  const baseSelect = {
+    id: true, slug: true, title: true, excerpt: true, body: true, coverAlt: true, hasCover: true,
+    metaTitle: true, metaDescription: true, keywords: true, published: true, publishedAt: true,
+    createdAt: true, updatedAt: true,
+  } as const;
+  let posts: AuditPost[];
+  try {
+    posts = (await prisma.blogPost.findMany({
+      select: { ...baseSelect, authorName: true, indexNowAt: true },
+    })) as AuditPost[];
+  } catch (e) {
+    // В базе может не быть новых колонок (автор, IndexNow) — читаем без них, остальные проверки работают
+    console.error("SEO-монитор: колонки автора/IndexNow недоступны, читаю статьи без них", e);
+    posts = ((await prisma.blogPost.findMany({ select: baseSelect })) as unknown as AuditPost[]).map((p) => ({
+      ...p,
+      authorName: "",
+      indexNowAt: null,
+    }));
+  }
 
-  const lastCron = (await prisma.seoAuditRun.findFirst({
-    where: { trigger: "cron" },
-    orderBy: { ranAt: "desc" },
-    select: { ranAt: true },
-  })) as { ranAt: Date } | null;
+  const lastCron = (await prisma.seoAuditRun
+    .findFirst({ where: { trigger: "cron" }, orderBy: { ranAt: "desc" }, select: { ranAt: true } })
+    .catch(() => null)) as { ranAt: Date } | null;
 
   const found: RawIssue[] = [];
   for (const p of posts) found.push(...auditPostContent(p, now));

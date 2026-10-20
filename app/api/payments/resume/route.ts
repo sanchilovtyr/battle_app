@@ -17,6 +17,14 @@ export async function POST() {
     );
   }
 
+  // Без сохранённой карты продлевать нечем: статус «активна» без карты никогда бы не закончился
+  if (!sub.paymentMethodId) {
+    return NextResponse.json(
+      { error: "Чтобы подписка продлевалась, оформите тариф и сохраните способ оплаты" },
+      { status: 400 }
+    );
+  }
+
   await prisma.subscription.update({
     where: { userId: user.id },
     data: { status: "active" },

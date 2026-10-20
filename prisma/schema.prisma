@@ -69,6 +69,8 @@ model Business {
   targetJson    Json? // цель на месяц
   crmJson       Json? // клиенты лёгкой CRM
   unitJson      Json? // допущения юнит-экономики (маржа, покупок на клиента)
+  risksJson     Json? // реестр рисков («Управление рисками»)
+  competitors   Competitor[]
 
   @@index([userId])
 }
@@ -313,4 +315,104 @@ model Payment {
   amountKopecks  Int
   status         String // pending | succeeded | canceled
   createdAt      DateTime @default(now())
+  /// Промокод, по которому была скидка (amountKopecks — уже со скидкой)
+  promoCodeId    String?
+  discountKopecks Int     @default(0)
+}
+
+/// Промокоды: скидка на первый месяц «Премиума» для пользователей на бесплатном тарифе. Заводятся в админке.
+model PromoCode {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  percent     Int
+  planId      String   @default("agency")
+  active      Boolean  @default(true)
+  expiresAt   DateTime?
+  maxUses     Int?
+  usedCount   Int      @default(0)
+  note        String   @default("")
+  createdAt   DateTime @default(now())
+  redemptions PromoRedemption[]
+}
+
+/// Один пользователь — один раз на каждый промокод (уникальная пара). Создаётся после успешной оплаты.
+model PromoRedemption {
+  id        String    @id @default(cuid())
+  promoId   String
+  promo     PromoCode @relation(fields: [promoId], references: [id], onDelete: Cascade)
+  userId    String
+  paymentId String?
+  createdAt DateTime  @default(now())
+
+  @@unique([promoId, userId])
+  @@index([userId])
+}
+
+/// «Управление рисками»: ленты новостей и законов (RSS/Atom), которые добавляет администратор.
+/// Свежие записи подбираются под угрозы пользователей по ключевым словам.
+model MonitorSource {
+  id            String        @id @default(cuid())
+  name          String
+  url           String        @unique
+  enabled       Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  lastFetchedAt DateTime?
+  /// ok | error
+  lastStatus    String        @default("")
+  lastError     String        @default("")
+  lastItems     Int           @default(0)
+  items         MonitorItem[]
+}
+
+model MonitorItem {
+  id          String        @id @default(cuid())
+  sourceId    String
+  source      MonitorSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  /// sha256 адреса записи — чтобы одна новость не сохранялась дважды
+  linkHash    String        @unique
+  title       String
+  link        String
+  summary     String        @default("")
+  publishedAt DateTime
+  createdAt   DateTime      @default(now())
+
+  @@index([publishedAt])
+}
+
+/// «Управление рисками»: страницы конкурентов, за которыми следит пользователь (до 3 на бизнес).
+/// Раз в сутки сервис сравнивает текст страницы со вчерашним и сохраняет, что изменилось.
+model Competitor {
+  id            String             @id @default(cuid())
+  businessId    String
+  business      Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name          String
+  url           String
+  createdAt     DateTime           @default(now())
+  lastCheckedAt DateTime?
+  /// ok | error | robots (сайт запрещает автоматическую проверку)
+  lastStatus    String             @default("")
+  lastError     String             @default("")
+  snapshotTitle String             @default("")
+  /// Текст страницы построчно (не больше 40 000 символов) — для сравнения со следующей проверкой
+  snapshotText  String             @default("")
+  snapshotAt    DateTime?
+  changes       CompetitorChange[]
+
+  @@index([businessId])
+  @@index([lastCheckedAt])
+}
+
+model CompetitorChange {
+  id           String     @id @default(cuid())
+  competitorId String
+  competitor   Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  businessId   String
+  detectedAt   DateTime   @default(now())
+  added        String[]   @default([])
+  removed      String[]   @default([])
+  /// Изменилась бóльшая часть страницы (редизайн или динамический блок)
+  large        Boolean    @default(false)
+  seen         Boolean    @default(false)
+
+  @@index([businessId, detectedAt])
 }

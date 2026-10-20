@@ -9,6 +9,7 @@ import { clearChecklist } from "./checklist";
 import { clearFunnel } from "./funnel";
 import { clearClients } from "./crm";
 import { clearUnitSettings } from "./unitEconomics";
+import { clearRisks } from "./risks";
 import { clearProgressHistory } from "./progressHistory";
 import { markCreated, markDeleted, markDirty, wipeLocalBusinessData } from "./cloudSync";
 
@@ -97,6 +98,7 @@ export function removeBusiness(id: string) {
   clearFunnel(id);
   clearClients(id);
   clearUnitSettings(id);
+  clearRisks(id);
   clearProgressHistory(id);
   markDeleted(id);
 }

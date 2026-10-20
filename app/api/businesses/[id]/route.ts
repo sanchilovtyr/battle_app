@@ -34,6 +34,7 @@ function toData(patch: ReturnType<typeof sanitizePatch>) {
     ...(patch.target !== undefined ? { targetJson: patch.target } : {}),
     ...(patch.clients !== undefined ? { crmJson: patch.clients } : {}),
     ...(patch.unit !== undefined ? { unitJson: patch.unit } : {}),
+    ...(patch.risks !== undefined ? { risksJson: patch.risks } : {}),
   };
 }
 

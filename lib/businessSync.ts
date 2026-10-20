@@ -5,6 +5,7 @@
 import type { GeneratedPlan } from "./types";
 import { isPlanSizeReasonable } from "./planValidation";
 import { CLIENT_STATUSES, CRM_SOURCES, MAX_CLIENTS } from "./crmCore";
+import { MAX_RISKS, REVIEW_PERIODS, RISK_CATEGORIES, RISK_STATUSES } from "./risksCore";
 
 export const MAX_BUSINESSES_PER_USER = 25;
 export const MAX_BODY_BYTES = 800_000;
@@ -97,6 +98,50 @@ export function sanitizeUnit(input: unknown): { marginPct?: number; purchases?: 
   return { ...(m !== undefined ? { marginPct: m } : {}), ...(p !== undefined ? { purchases: p } : {}) };
 }
 
+export function sanitizeRisks(input: unknown) {
+  if (!Array.isArray(input)) return [];
+  const out = [];
+  const seen = new Set<string>();
+  const scale = (v: unknown) => Math.round(num(v, 1, 5) ?? 3);
+  const date = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
+  for (const raw of input.slice(0, MAX_RISKS)) {
+    if (!raw || typeof raw !== "object") continue;
+    const r = raw as Record<string, unknown>;
+    const id = str(r.id, 64);
+    const title = (str(r.title, 200) ?? "").trim();
+    if (!id || !title || seen.has(id)) continue;
+    seen.add(id);
+    const createdAt = str(r.createdAt, 40) ?? new Date().toISOString();
+    const signal = (str(r.signal, 600) ?? "").trim();
+    const measures = (str(r.measures, 1500) ?? "").trim();
+    const plan = (str(r.plan, 1500) ?? "").trim();
+    const every = num(r.reviewEveryDays, 1, 365);
+    const note = (str(r.note, 600) ?? "").trim();
+    const watch = (str(r.watch, 300) ?? "").trim();
+    const templateId = str(r.templateId, 60);
+    const reviewAt = date(r.reviewAt);
+    out.push({
+      id,
+      createdAt,
+      updatedAt: str(r.updatedAt, 40) ?? createdAt,
+      title,
+      category: oneOf(r.category, RISK_CATEGORIES) ?? "economy",
+      probability: scale(r.probability),
+      impact: scale(r.impact),
+      ...(signal ? { signal } : {}),
+      ...(measures ? { measures } : {}),
+      ...(plan ? { plan } : {}),
+      ...(note ? { note } : {}),
+      ...(watch ? { watch } : {}),
+      status: oneOf(r.status, RISK_STATUSES) ?? "open",
+      ...(every !== undefined && REVIEW_PERIODS.includes(every) ? { reviewEveryDays: every } : {}),
+      ...(templateId && /^[A-Za-z0-9_-]+$/.test(templateId) ? { templateId } : {}),
+      ...(reviewAt ? { reviewAt } : {}),
+    });
+  }
+  return out;
+}
+
 export function sanitizeChecklist(input: unknown): Record<string, boolean[]> {
   const out: Record<string, boolean[]> = {};
   if (!input || typeof input !== "object" || Array.isArray(input)) return out;
@@ -161,6 +206,7 @@ export interface BusinessPatch {
   target?: ReturnType<typeof sanitizeTarget>;
   clients?: ReturnType<typeof sanitizeClients>;
   unit?: ReturnType<typeof sanitizeUnit>;
+  risks?: ReturnType<typeof sanitizeRisks>;
 }
 
 /** Из тела запроса берём только присланные поля — отсутствующее не затираем. */
@@ -179,6 +225,7 @@ export function sanitizePatch(body: unknown): BusinessPatch {
   if ("target" in b) out.target = sanitizeTarget(b.target);
   if ("clients" in b) out.clients = sanitizeClients(b.clients);
   if ("unit" in b) out.unit = sanitizeUnit(b.unit);
+  if ("risks" in b) out.risks = sanitizeRisks(b.risks);
   return out;
 }
 

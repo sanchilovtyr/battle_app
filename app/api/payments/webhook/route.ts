@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getYookassaPayment } from "@/lib/yookassa";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
+import { recordRedemption } from "@/lib/promo";
 
 const PERIOD_DAYS = 30;
 
@@ -69,6 +70,9 @@ export async function POST(req: Request) {
         },
       }),
     ]);
+    // Промокод засчитывается только после успешной оплаты
+    const promoId = (record as { promoCodeId?: string | null }).promoCodeId;
+    if (promoId) await recordRedemption(promoId, record.userId, record.id);
   } else if (payment.status === "canceled" && record.status !== "canceled") {
     await prisma.payment.update({
       where: { yookassaId: paymentId },

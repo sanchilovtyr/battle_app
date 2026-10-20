@@ -5,11 +5,57 @@ import { useSession } from "next-auth/react";
 import { PLANS, PricingPlan } from "@/lib/plans";
 import DisclaimerModal from "@/components/DisclaimerModal";
 
+interface AppliedPromo {
+  code: string;
+  percent: number;
+  planId: string;
+  originalRub: number;
+  finalRub: number;
+  free: boolean;
+  text: string;
+}
+
+const fmtRub = (n: number) => `${n.toLocaleString("ru-RU").replace(/\u00a0/g, " ")} ₽`;
+
 export default function PricingSection() {
   const { data: session } = useSession();
   const [notice, setNotice] = useState<{ planId: string; text: string } | null>(null);
   const [pendingPlan, setPendingPlan] = useState<PricingPlan | null>(null);
   const [paying, setPaying] = useState(false);
+  const [promoOpen, setPromoOpen] = useState(false);
+  const [promoInput, setPromoInput] = useState("");
+  const [promoBusy, setPromoBusy] = useState(false);
+  const [promoError, setPromoError] = useState("");
+  const [promo, setPromo] = useState<AppliedPromo | null>(null);
+
+  const applyPromo = async () => {
+    const code = promoInput.trim();
+    if (!code) return;
+    setPromoError("");
+    setPromoBusy(true);
+    try {
+      const res = await fetch("/api/promo/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        setPromo(null);
+        setPromoError(
+          res.status === 401
+            ? "Чтобы применить промокод, сначала зарегистрируйтесь или войдите в анкете ниже."
+            : data.error || "Не удалось проверить промокод"
+        );
+      } else {
+        setPromo(data as AppliedPromo);
+      }
+    } catch {
+      setPromoError("Не удалось связаться с сервером. Попробуйте ещё раз чуть позже.");
+    } finally {
+      setPromoBusy(false);
+    }
+  };
 
   const openConfirm = (plan: PricingPlan) => {
     setNotice(null);
@@ -40,9 +86,13 @@ export default function PricingSection() {
       const res = await fetch("/api/payments/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId: plan.id }),
+        body: JSON.stringify({ planId: plan.id, ...(promo && promo.planId === plan.id ? { promoCode: promo.code } : {}) }),
       });
       const data = await res.json();
+      if (res.ok && data.activated) {
+        window.location.href = "/account?payment=done";
+        return;
+      }
       if (!res.ok || !data.confirmationUrl) {
         setNotice({
           planId: plan.id,
@@ -88,10 +138,21 @@ export default function PricingSection() {
               {plan.description}
             </p>
             <div className="mb-6">
-              <span className="font-display text-3xl">{plan.price}</span>{" "}
-              <span className={plan.highlighted ? "text-white/60" : "text-muted"}>
-                {plan.period}
-              </span>
+              {promo && promo.planId === plan.id ? (
+                <>
+                  <span className="mr-2 text-base line-through opacity-60">{plan.price}</span>
+                  <span className="font-display text-3xl">{promo.free ? "0 ₽" : fmtRub(promo.finalRub)}</span>{" "}
+                  <span className={plan.highlighted ? "text-white/60" : "text-muted"}>первый месяц</span>
+                  <p className={`mt-2 text-xs ${plan.highlighted ? "text-white/70" : "text-muted"}`}>{promo.text}</p>
+                </>
+              ) : (
+                <>
+                  <span className="font-display text-3xl">{plan.price}</span>{" "}
+                  <span className={plan.highlighted ? "text-white/60" : "text-muted"}>
+                    {plan.period}
+                  </span>
+                </>
+              )}
             </div>
             <ul className="mb-6 flex-1 space-y-2.5">
               {plan.features.map((f, i) => (
@@ -124,6 +185,48 @@ export default function PricingSection() {
             )}
           </div>
         ))}
+      </div>
+
+      <div className="mt-6 text-center">
+        {!promoOpen && !promo ? (
+          <button onClick={() => setPromoOpen(true)} className="text-sm text-violet underline underline-offset-4 hover:text-ink-900">
+            Есть промокод?
+          </button>
+        ) : (
+          <div className="mx-auto max-w-md">
+            <div className="flex gap-2">
+              <input
+                value={promoInput}
+                onChange={(e) => {
+                  setPromoInput(e.target.value);
+                  if (promo) setPromo(null);
+                }}
+                onKeyDown={(e) => e.key === "Enter" && applyPromo()}
+                maxLength={40}
+                placeholder="Промокод на тариф «Премиум»"
+                aria-label="Промокод"
+                className="w-full rounded-full border border-line bg-white px-4 py-2.5 text-sm text-ink-900 focus:border-ink-900 focus:outline-none"
+              />
+              <button
+                onClick={applyPromo}
+                disabled={promoBusy || !promoInput.trim()}
+                className="rounded-full bg-ink-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-ink-800 disabled:opacity-40"
+              >
+                {promoBusy ? "Проверяем…" : "Применить"}
+              </button>
+            </div>
+            {promoError && (
+              <p className="mt-2 text-sm text-red-700" role="alert">
+                {promoError}
+              </p>
+            )}
+            {promo && (
+              <p className="mt-2 text-sm text-emerald-700" role="status">
+                Промокод применён к тарифу «Премиум». Нажмите «Оформить подписку» в его карточке.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {pendingPlan && (

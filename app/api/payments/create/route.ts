@@ -4,6 +4,8 @@ import { createYookassaPayment } from "@/lib/yookassa";
 import { getPlan, PlanId } from "@/lib/plans";
 import { prisma } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { checkPromoForUser, grantFreeMonth } from "@/lib/promo";
+import { PROMO_PLAN_ID } from "@/lib/promoCore";
 
 function rubFromPriceLabel(price: string): number {
   return Number(price.replace(/[^\d]/g, "")) || 0;
@@ -30,7 +32,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Этот тариф нельзя оплатить" }, { status: 400 });
   }
 
-  const amountRub = rubFromPriceLabel(plan.price);
+  let amountRub = rubFromPriceLabel(plan.price);
+  const fullRub = amountRub;
+  let promoId: string | undefined;
+  let promoCodeText = "";
+  if (typeof body.promoCode === "string" && body.promoCode.trim()) {
+    if (planId !== PROMO_PLAN_ID) {
+      return NextResponse.json({ error: "Промокод действует только на тариф «Премиум»" }, { status: 400 });
+    }
+    // Цену со скидкой считает только сервер: сумма из запроса не принимается
+    const check = await checkPromoForUser(user.id, body.promoCode, planId);
+    if (!check.ok) return NextResponse.json({ error: check.error }, { status: check.status });
+    if (check.price.free) {
+      const granted = await grantFreeMonth(user.id, check.promo, planId);
+      if (!granted) return NextResponse.json({ error: "Промокод больше не действует" }, { status: 400 });
+      return NextResponse.json({ activated: true });
+    }
+    amountRub = check.price.finalRub;
+    promoId = check.promo.id;
+    promoCodeText = check.promo.code;
+  }
   // Не берём адрес возврата из заголовка Origin — его может прислать любой,
   // а не только настоящий браузер пользователя. Используем свой настроенный адрес
   const siteUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
@@ -39,9 +60,9 @@ export async function POST(req: Request) {
   try {
     payment = await createYookassaPayment({
       amountRub,
-      description: `Подписка «${plan.name}» — сервис «Ключевое слово»`,
+      description: `Подписка «${plan.name}»${promoCodeText ? ` (первый месяц по промокоду)` : ""} — сервис «Ключевое слово»`,
       returnUrl: `${siteUrl}/account?payment=done`,
-      metadata: { userId: user.id, planId },
+      metadata: { userId: user.id, planId, ...(promoId ? { promoId } : {}) },
       savePaymentMethod: true,
       customerEmail: user.email,
     });
@@ -57,6 +78,7 @@ export async function POST(req: Request) {
       planId,
       amountKopecks: Math.round(amountRub * 100),
       status: payment.status,
+      ...(promoId ? { promoCodeId: promoId, discountKopecks: Math.round((fullRub - amountRub) * 100) } : {}),
     },
   });
 

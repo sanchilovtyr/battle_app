@@ -5,7 +5,6 @@ import { getPlan, PlanId } from "@/lib/plans";
 import { prisma } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { checkPromoForUser, grantFreeMonth } from "@/lib/promo";
-import { PROMO_PLAN_ID } from "@/lib/promoCore";
 
 function rubFromPriceLabel(price: string): number {
   return Number(price.replace(/[^\d]/g, "")) || 0;
@@ -37,9 +36,6 @@ export async function POST(req: Request) {
   let promoId: string | undefined;
   let promoCodeText = "";
   if (typeof body.promoCode === "string" && body.promoCode.trim()) {
-    if (planId !== PROMO_PLAN_ID) {
-      return NextResponse.json({ error: "Промокод действует только на тариф «Премиум»" }, { status: 400 });
-    }
     // Цену со скидкой считает только сервер: сумма из запроса не принимается
     const check = await checkPromoForUser(user.id, body.promoCode, planId);
     if (!check.ok) return NextResponse.json({ error: check.error }, { status: check.status });

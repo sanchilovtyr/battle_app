@@ -5,14 +5,18 @@ import { useSession } from "next-auth/react";
 import { PLANS, PricingPlan } from "@/lib/plans";
 import DisclaimerModal from "@/components/DisclaimerModal";
 
-interface AppliedPromo {
-  code: string;
-  percent: number;
+interface PromoOffer {
   planId: string;
   originalRub: number;
   finalRub: number;
   free: boolean;
   text: string;
+}
+
+interface AppliedPromo {
+  code: string;
+  percent: number;
+  offers: PromoOffer[];
 }
 
 /** Сколько пунктов тарифа видно сразу; остальные раскрываются по кнопке. */
@@ -90,7 +94,7 @@ export default function PricingSection() {
       const res = await fetch("/api/payments/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId: plan.id, ...(promo && promo.planId === plan.id ? { promoCode: promo.code } : {}) }),
+        body: JSON.stringify({ planId: plan.id, ...(promo && promo.offers.some((o) => o.planId === plan.id) ? { promoCode: promo.code } : {}) }),
       });
       const data = await res.json();
       if (res.ok && data.activated) {
@@ -118,7 +122,9 @@ export default function PricingSection() {
   return (
     <div>
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        {PLANS.map((plan) => (
+        {PLANS.map((plan) => {
+          const offer = promo?.offers.find((o) => o.planId === plan.id);
+          return (
           <div
             key={plan.id}
             className={`flex flex-col rounded-2xl border p-6 transition-all duration-300 ease-out ${
@@ -142,12 +148,12 @@ export default function PricingSection() {
               {plan.description}
             </p>
             <div className="mb-6">
-              {promo && promo.planId === plan.id ? (
+              {offer ? (
                 <>
                   <span className="mr-2 text-base line-through opacity-60">{plan.price}</span>
-                  <span className="font-display text-3xl">{promo.free ? "0 ₽" : fmtRub(promo.finalRub)}</span>{" "}
+                  <span className="font-display text-3xl">{offer.free ? "0 ₽" : fmtRub(offer.finalRub)}</span>{" "}
                   <span className={plan.highlighted ? "text-white/60" : "text-muted"}>первый месяц</span>
-                  <p className={`mt-2 text-xs ${plan.highlighted ? "text-white/70" : "text-muted"}`}>{promo.text}</p>
+                  <p className={`mt-2 text-xs ${plan.highlighted ? "text-white/70" : "text-muted"}`}>{offer.text}</p>
                 </>
               ) : (
                 <>
@@ -201,7 +207,8 @@ export default function PricingSection() {
               <p className="mt-3 text-xs text-violet">{notice.text}</p>
             )}
           </div>
-        ))}
+        );
+        })}
       </div>
 
       <div className="mt-6 text-center">
@@ -220,7 +227,7 @@ export default function PricingSection() {
                 }}
                 onKeyDown={(e) => e.key === "Enter" && applyPromo()}
                 maxLength={40}
-                placeholder="Промокод на тариф «Премиум»"
+                placeholder="Промокод"
                 aria-label="Промокод"
                 className="w-full rounded-full border border-line bg-white px-4 py-2.5 text-sm text-ink-900 focus:border-ink-900 focus:outline-none"
               />
@@ -239,7 +246,7 @@ export default function PricingSection() {
             )}
             {promo && (
               <p className="mt-2 text-sm text-emerald-700" role="status">
-                Промокод применён к тарифу «Премиум». Нажмите «Оформить подписку» в его карточке.
+                {promo.offers.length === 1 ? `Промокод применён к тарифу «${PLANS.find((p) => p.id === promo.offers[0].planId)?.name}».` : "Промокод применён: скидка показана в карточках платных тарифов."} Нажмите «Оформить подписку» в нужной карточке.
               </p>
             )}
           </div>

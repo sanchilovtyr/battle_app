@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/db";
 import { computeEffectivePlanId } from "@/lib/subscriptionUtils";
 import { getPlan, PlanId } from "@/lib/plans";
-import { PROMO_PERIOD_DAYS, evaluatePromo, normalizeCode, priceWithPromo, type PromoPrice } from "@/lib/promoCore";
+import { PROMO_PERIOD_DAYS, PROMO_PLAN_IDS, evaluatePromo, normalizeCode, priceWithPromo, promoSummary, type PromoPrice } from "@/lib/promoCore";
 
 const db = prisma as any;
 
@@ -79,4 +79,40 @@ export async function grantFreeMonth(userId: string, promo: PromoRow, planId: Pl
     await db.promoCode.update({ where: { id: promo.id }, data: { usedCount: { decrement: 1 } } }).catch(() => undefined);
     return false;
   }
+}
+
+export interface PromoPlanOffer {
+  planId: PlanId;
+  originalRub: number;
+  finalRub: number;
+  free: boolean;
+  text: string;
+}
+
+export type PromoOffers =
+  | { ok: true; code: string; percent: number; offers: PromoPlanOffer[] }
+  | { ok: false; error: string; status: number };
+
+/** Проверка кода для экрана тарифов: возвращает цену со скидкой для каждого платного тарифа, на который код действует. */
+export async function offersForCode(userId: string, rawCode: unknown): Promise<PromoOffers> {
+  const code = normalizeCode(rawCode);
+  const promo = code ? ((await db.promoCode.findUnique({ where: { code } })) as PromoRow | null) : null;
+  const used = promo ? !!(await db.promoRedemption.findUnique({ where: { promoId_userId: { promoId: promo.id, userId } }, select: { id: true } })) : false;
+  const effective = await effectivePlanIdOf(userId);
+  const offers: PromoPlanOffer[] = [];
+  let firstError = "Промокод не найден или больше не действует";
+  for (const pid of PROMO_PLAN_IDS) {
+    const verdict = evaluatePromo(promo, { now: new Date(), planId: pid, effectivePlanId: effective, alreadyUsedByUser: used });
+    if (!verdict.ok) {
+      // Сообщение «действует только на тариф…» важнее, чем «не найден»: оно подсказывает, куда применить код
+      if (verdict.code !== "wrong_plan" || firstError.startsWith("Промокод не найден")) firstError = verdict.message;
+      if (verdict.code === "wrong_plan") continue;
+      return { ok: false, error: verdict.message, status: 400 };
+    }
+    const plan = getPlan(pid);
+    const price = priceWithPromo(rubFromPriceLabel(plan.price), promo!.percent);
+    offers.push({ planId: pid, originalRub: price.originalRub, finalRub: price.finalRub, free: price.free, text: promoSummary(price, promo!.percent, plan.price) });
+  }
+  if (!offers.length || !promo) return { ok: false, error: firstError, status: 400 };
+  return { ok: true, code: promo.code, percent: promo.percent, offers };
 }

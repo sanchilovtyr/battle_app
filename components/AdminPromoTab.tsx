@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PLANS } from "@/lib/plans";
+import { PROMO_PLAN_IDS, promoPlanLabel } from "@/lib/promoCore";
 
 interface Promo {
   id: string;
   code: string;
   percent: number;
+  planId: string;
   active: boolean;
   expiresAt: string | null;
   maxUses: number | null;
@@ -34,6 +37,7 @@ export default function AdminPromoTab() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [code, setCode] = useState("");
+  const [planId, setPlanId] = useState<string>("agency");
   const [percent, setPercent] = useState("50");
   const [expires, setExpires] = useState("");
   const [maxUses, setMaxUses] = useState("");
@@ -76,13 +80,24 @@ export default function AdminPromoTab() {
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-line bg-white p-5">
-        <h2 className="font-display text-lg text-ink-900">Промокоды на «Премиум»</h2>
+        <h2 className="font-display text-lg text-ink-900">Промокоды</h2>
         <p className="mt-1 text-sm text-muted">
-          Скидка действует на первый месяц и только для пользователей на бесплатном тарифе. Со второго месяца подписка продлевается по обычной цене (если не отменить). Скидка 100% даёт месяц без оплаты и без автопродления. Один пользователь может использовать один код один раз.
+          Каждый промокод выпускается на выбранный тариф («Старт», «Бизнес», «Премиум») или на любой платный. Скидка действует на первый месяц и только для пользователей на бесплатном тарифе. Со второго месяца подписка продлевается по обычной цене (если не отменить). Скидка 100% даёт месяц без оплаты и без автопродления. Один пользователь может использовать один код один раз.
         </p>
         {st?.needsDbPush && <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Таблицы промокодов не найдены. Выполните на сервере npx prisma db push.</p>}
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <label className="text-sm">
+            <span className="mb-1 block text-xs text-muted">Тариф</span>
+            <select className={inputCls} value={planId} onChange={(e) => setPlanId(e.target.value)}>
+              {PROMO_PLAN_IDS.map((id) => (
+                <option key={id} value={id}>
+                  {PLANS.find((p) => p.id === id)?.name} ({PLANS.find((p) => p.id === id)?.price}/мес)
+                </option>
+              ))}
+              <option value="any">Любой платный тариф</option>
+            </select>
+          </label>
           <label className="text-sm">
             <span className="mb-1 block text-xs text-muted">Промокод</span>
             <div className="flex gap-1">
@@ -111,7 +126,7 @@ export default function AdminPromoTab() {
         </label>
         <button
           disabled={busy || !code.trim()}
-          onClick={() => act({ action: "create", code, percent: Number(percent), expiresAt: expires || null, maxUses: maxUses.trim() ? Number(maxUses) : null, note })}
+          onClick={() => act({ action: "create", code, planId, percent: Number(percent), expiresAt: expires || null, maxUses: maxUses.trim() ? Number(maxUses) : null, note })}
           className="mt-4 rounded-full bg-ink-900 px-5 py-2 text-sm font-medium text-white hover:bg-ink-800 disabled:opacity-40"
         >
           Создать промокод
@@ -128,7 +143,7 @@ export default function AdminPromoTab() {
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
                 <div className="min-w-0">
                   <p className="font-medium text-ink-900">
-                    <span className="font-mono">{p.code}</span> · {p.percent}%{" "}
+                    <span className="font-mono">{p.code}</span> · {p.percent}% · {promoPlanLabel(p.planId)}{" "}
                     {!p.active && <span className="text-xs font-normal text-muted">(выключен)</span>}
                   </p>
                   <p className="text-xs text-muted">

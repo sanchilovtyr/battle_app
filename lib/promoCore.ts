@@ -1,9 +1,21 @@
 // Промокоды: скидка на первый месяц тарифа «Премиум» для пользователей на бесплатном тарифе.
 // Чистые функции (без базы и сети): проверяются тестами scripts/promo_test.ts.
 
-import type { PlanId } from "./plans";
+import { getPlan, type PlanId } from "./plans";
 
-export const PROMO_PLAN_ID: PlanId = "agency";
+/** Тарифы, на которые можно выпустить промокод. «any» — действует на любой из платных. */
+export const PROMO_PLAN_IDS = ["start", "business", "agency"] as const;
+export type PromoPlanId = (typeof PROMO_PLAN_IDS)[number] | "any";
+export const PROMO_ANY: PromoPlanId = "any";
+
+export function isPromoPlanId(v: unknown): v is PromoPlanId {
+  return v === PROMO_ANY || (PROMO_PLAN_IDS as readonly string[]).includes(String(v));
+}
+
+/** Подпись тарифа промокода для админки и сообщений. */
+export function promoPlanLabel(planId: string): string {
+  return planId === PROMO_ANY ? "любой платный тариф" : `«${getPlan(planId as PlanId).name}»`;
+}
 export const PROMO_PERIOD_DAYS = 30;
 export const MAX_PROMO_PERCENT = 100;
 export const MIN_CODE_LEN = 3;
@@ -60,7 +72,10 @@ export function evaluatePromo(
   if (promo.expiresAt && promo.expiresAt.getTime() <= ctx.now.getTime()) return { ok: false, code: "unknown", message: GENERIC_PROMO_ERROR };
   if (promo.maxUses !== null && promo.usedCount >= promo.maxUses) return { ok: false, code: "unknown", message: GENERIC_PROMO_ERROR };
   if (ctx.alreadyUsedByUser) return { ok: false, code: "already_used", message: "Вы уже использовали этот промокод" };
-  if (ctx.planId !== promo.planId) return { ok: false, code: "wrong_plan", message: "Этот промокод действует только на тариф «Премиум»" };
+  if (promo.planId !== PROMO_ANY && ctx.planId !== promo.planId) {
+    return { ok: false, code: "wrong_plan", message: `Этот промокод действует только на тариф ${promoPlanLabel(promo.planId)}` };
+  }
+  if (!(PROMO_PLAN_IDS as readonly string[]).includes(ctx.planId)) return { ok: false, code: "wrong_plan", message: "Промокод действует только на платные тарифы" };
   if (ctx.effectivePlanId !== "trial") return { ok: false, code: "not_free_plan", message: "Промокод действует для пользователей на бесплатном тарифе" };
   return { ok: true };
 }
@@ -69,6 +84,7 @@ export function evaluatePromo(
 
 export interface PromoInput {
   code: string;
+  planId: PromoPlanId;
   percent: number;
   expiresAt: Date | null;
   maxUses: number | null;
@@ -80,6 +96,8 @@ export function parsePromoInput(raw: unknown, now: Date): { ok: true; value: Pro
   const r = raw as Record<string, unknown>;
   const code = normalizeCode(r.code);
   if (!isValidCode(code)) return { ok: false, error: `Код: от ${MIN_CODE_LEN} до ${MAX_CODE_LEN} символов, буквы, цифры, «-» и «_»` };
+  if (!isPromoPlanId(r.planId)) return { ok: false, error: "Выберите тариф, на который действует промокод" };
+  const planId = r.planId;
   const percent = Number(r.percent);
   if (!Number.isInteger(percent) || percent < 1 || percent > MAX_PROMO_PERCENT) return { ok: false, error: "Скидка: целое число от 1 до 100 процентов" };
   let expiresAt: Date | null = null;
@@ -98,7 +116,7 @@ export function parsePromoInput(raw: unknown, now: Date): { ok: true; value: Pro
     maxUses = m;
   }
   const note = typeof r.note === "string" ? r.note.trim().slice(0, 200) : "";
-  return { ok: true, value: { code, percent, expiresAt, maxUses, note } };
+  return { ok: true, value: { code, planId, percent, expiresAt, maxUses, note } };
 }
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";

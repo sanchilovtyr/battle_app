@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyAdminToken, ADMIN_COOKIE_NAME } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db";
-import { generateCode, parsePromoInput, PROMO_PLAN_ID } from "@/lib/promoCore";
+import { generateCode, parsePromoInput } from "@/lib/promoCore";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ async function list() {
   return db.promoCode.findMany({
     orderBy: { createdAt: "desc" },
     take: 200,
-    select: { id: true, code: true, percent: true, active: true, expiresAt: true, maxUses: true, usedCount: true, note: true, createdAt: true },
+    select: { id: true, code: true, percent: true, planId: true, active: true, expiresAt: true, maxUses: true, usedCount: true, note: true, createdAt: true },
   });
 }
 
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       if (await db.promoCode.findUnique({ where: { code: v.code }, select: { id: true } })) {
         return NextResponse.json({ error: "Такой промокод уже есть" }, { status: 400 });
       }
-      await db.promoCode.create({ data: { code: v.code, percent: v.percent, planId: PROMO_PLAN_ID, expiresAt: v.expiresAt, maxUses: v.maxUses, note: v.note } });
+      await db.promoCode.create({ data: { code: v.code, percent: v.percent, planId: v.planId, expiresAt: v.expiresAt, maxUses: v.maxUses, note: v.note } });
     } else if (body.action === "toggle" && typeof body.id === "string") {
       await db.promoCode.update({ where: { id: body.id }, data: { active: body.active === true } });
     } else if (body.action === "remove" && typeof body.id === "string") {

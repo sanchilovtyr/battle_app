@@ -13,6 +13,9 @@ import { useCloudSync } from "@/lib/useCloudSync";
 import { flushQueueBeforeLogout } from "@/lib/cloudSync";
 import RenewalRecap from "@/components/RenewalRecap";
 import AuthGate from "@/components/AuthGate";
+import Tour from "@/components/tour/Tour";
+import TourButton from "@/components/tour/TourButton";
+import { ACCOUNT_TOUR_STEPS } from "@/lib/tourCore";
 
 interface ApiSubscription {
   planId: PlanId;
@@ -237,13 +240,19 @@ export default function AccountPage() {
       <div className="mx-auto max-w-3xl px-5 py-12 md:px-8 md:py-16">
         <div className="mb-8 flex items-center justify-between">
           <h1 className="font-display text-3xl text-ink-900">Личный кабинет</h1>
-          <button
-            onClick={handleLogout}
-            className="text-sm text-muted underline underline-offset-4 hover:text-ink-900"
-          >
-            Выйти
-          </button>
+          <div className="flex items-center gap-4">
+            <TourButton id="account" className="text-sm text-muted underline underline-offset-4 hover:text-ink-900">
+              Подсказки
+            </TourButton>
+            <button
+              onClick={handleLogout}
+              className="text-sm text-muted underline underline-offset-4 hover:text-ink-900"
+            >
+              Выйти
+            </button>
+          </div>
         </div>
+        <Tour id="account" ready={dataLoaded} steps={ACCOUNT_TOUR_STEPS} />
 
         {actionError && (
           <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-3.5 text-sm text-red-700">
@@ -264,7 +273,7 @@ export default function AccountPage() {
         <NewsSection />
 
         {/* PROFILE */}
-        <section className="mb-8 rounded-2xl border border-line bg-white p-6">
+        <section data-tour="account-profile" className="mb-8 rounded-2xl border border-line bg-white p-6">
           <h2 className="font-display text-lg text-ink-900 mb-4">Данные профиля</h2>
           <form onSubmit={handleSaveProfile} className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
@@ -309,7 +318,7 @@ export default function AccountPage() {
         </section>
 
         {/* SUBSCRIPTION */}
-        <section className="mb-8 rounded-2xl border border-line bg-white p-6">
+        <section data-tour="account-subscription" className="mb-8 rounded-2xl border border-line bg-white p-6">
           <h2 className="font-display text-lg text-ink-900 mb-4">Подписка</h2>
           <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-soft p-4">
             <div>
@@ -399,7 +408,7 @@ export default function AccountPage() {
         </section>
 
         {/* BUSINESSES */}
-        <section className="rounded-2xl border border-line bg-white p-6">
+        <section data-tour="account-businesses" className="rounded-2xl border border-line bg-white p-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-display text-lg text-ink-900">Мои бизнесы</h2>
             <span className="text-sm text-muted">
@@ -412,7 +421,7 @@ export default function AccountPage() {
           )}
 
           <div className="space-y-3">
-            {businesses.map((b) => (
+            {businesses.map((b, bi) => (
               <div
                 key={b.id}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-soft p-4"
@@ -451,6 +460,7 @@ export default function AccountPage() {
                   {b.plan && (
                     <Link
                       href={`/business/${b.id}`}
+                      data-tour={bi === 0 ? "account-open-plan" : undefined}
                       className="text-sm font-medium text-violet underline underline-offset-4 hover:text-ink-900"
                     >
                       Открыть план
@@ -487,7 +497,7 @@ export default function AccountPage() {
           </div>
         </section>
 
-        <div className="mt-8">
+        <div className="mt-8" data-tour="account-support">
           <SupportSection email={email} />
         </div>
 

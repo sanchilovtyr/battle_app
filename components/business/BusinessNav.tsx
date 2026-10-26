@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import TourButton from "@/components/tour/TourButton";
 
 const ITEMS = [
   { slug: "", label: "Обзор плана", icon: "▤" },
@@ -23,7 +24,7 @@ export default function BusinessNav({ businessId, businessName }: { businessId: 
   return (
     <>
       {/* Десктоп */}
-      <nav aria-label="Разделы плана" className="print:hidden hidden lg:block">
+      <nav aria-label="Разделы плана" data-tour="plan-nav" className="print:hidden hidden lg:block">
         <div className="sticky top-24">
           <Link href="/account" className="mb-3 inline-block text-sm text-muted underline underline-offset-4 hover:text-ink-900">
             ← Личный кабинет
@@ -37,6 +38,7 @@ export default function BusinessNav({ businessId, businessName }: { businessId: 
                   <Link
                     href={it.slug ? `${base}/${it.slug}` : base}
                     aria-current={active ? "page" : undefined}
+                    data-tour={`nav-${it.slug || "overview"}`}
                     className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm transition-colors ${
                       active ? "bg-ink-900 font-semibold text-white" : "text-ink-900/75 hover:bg-soft hover:text-ink-900"
                     }`}
@@ -48,6 +50,9 @@ export default function BusinessNav({ businessId, businessName }: { businessId: 
               );
             })}
           </ul>
+          <TourButton id="plan" className="mt-4 inline-flex items-center gap-2 rounded-full border border-line px-3.5 py-2 text-sm text-ink-900/75 hover:bg-soft hover:text-ink-900">
+            <span aria-hidden>?</span> Подсказки
+          </TourButton>
         </div>
       </nav>
 
@@ -64,6 +69,7 @@ export default function BusinessNav({ businessId, businessName }: { businessId: 
                 <Link
                   href={it.slug ? `${base}/${it.slug}` : base}
                   aria-current={active ? "page" : undefined}
+                  data-tour={`nav-${it.slug || "overview"}`}
                   ref={(el) => {
                     if (el && active) el.scrollIntoView({ inline: "center", block: "nearest" });
                   }}
@@ -76,6 +82,11 @@ export default function BusinessNav({ businessId, businessName }: { businessId: 
               </li>
             );
           })}
+          <li className="shrink-0">
+            <TourButton id="plan" className="block whitespace-nowrap rounded-full border border-dashed border-ink-900/30 px-3.5 py-1.5 text-sm text-ink-900/75">
+              ? Подсказки
+            </TourButton>
+          </li>
         </ul>
       </nav>
     </>

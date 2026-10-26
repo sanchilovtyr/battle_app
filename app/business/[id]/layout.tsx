@@ -4,6 +4,8 @@ import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import { BusinessProvider, useBusiness } from "@/components/business/BusinessContext";
 import BusinessNav from "@/components/business/BusinessNav";
+import Tour from "@/components/tour/Tour";
+import { planTourSteps } from "@/lib/tourCore";
 
 function Message({ title, text }: { title: string; text: string }) {
   return (
@@ -21,7 +23,7 @@ function Message({ title, text }: { title: string; text: string }) {
 }
 
 function Frame({ id, children }: { id: string; children: React.ReactNode }) {
-  const { status, loaded, business } = useBusiness();
+  const { status, loaded, business, planMeta } = useBusiness();
 
   let body: React.ReactNode = children;
   if (status === "loading" || !loaded) body = null;
@@ -48,6 +50,7 @@ function Frame({ id, children }: { id: string; children: React.ReactNode }) {
           <div className="lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-10 lg:py-12">
             <BusinessNav businessId={id} businessName={business?.name} />
             <div className="min-w-0 py-6 lg:py-0">{body}</div>
+            <Tour id="plan" ready={showNav} steps={planTourSteps(planMeta)} />
           </div>
         ) : (
           body

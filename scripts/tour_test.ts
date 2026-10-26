@@ -1,0 +1,23 @@
+import { isNewUser, tourStorageKey, availableSteps, planTourSteps, ACCOUNT_TOUR_STEPS, NEW_USER_DAYS } from "../lib/tourCore";
+let n = 0;
+function ok(c: boolean, m: string) { if (!c) { console.error("FAIL", m); process.exit(1); } n++; }
+const now = Date.parse("2026-10-26T12:00:00Z");
+ok(isNewUser("2026-10-25T12:00:00Z", now), "вчера — новый");
+ok(isNewUser(new Date(now - NEW_USER_DAYS * 86400000).toISOString(), now), "ровно 14 дней — новый");
+ok(!isNewUser("2026-09-01T00:00:00Z", now), "старый аккаунт");
+ok(!isNewUser(null, now) && !isNewUser("мусор", now) && !isNewUser(undefined, now), "нет даты");
+ok(!isNewUser("2027-01-01T00:00:00Z", now), "дата из будущего");
+ok(tourStorageKey("plan", " A@B.ru ") === "mn_tour_plan_a@b.ru", "ключ");
+const s = availableSteps(ACCOUNT_TOUR_STEPS, (t) => t !== "account-support");
+ok(s.length === ACCOUNT_TOUR_STEPS.length - 1 && s.every((x) => x.target !== "account-support"), "пропуск отсутствующих");
+ok(s.filter((x) => !x.target).length === 2, "шаги по центру остаются");
+const none = { audienceVectorAccess: false, checklistAccess: false, growthPointsAccess: false, risksAccess: false, unitEconomicsAccess: false, crmAccess: false };
+const all = { audienceVectorAccess: true, checklistAccess: true, growthPointsAccess: true, risksAccess: true, unitEconomicsAccess: true, crmAccess: true };
+const a = planTourSteps(none), b = planTourSteps(all);
+ok(a.length === b.length, "число шагов");
+ok(a.filter((x) => x.text.includes("закрыт")).length === 7, "7 закрытых на триале");
+ok(b.every((x) => !x.text.includes("закрыт")), "ничего не закрыто на Премиум");
+ok(/«Бизнес»/.test(a[2].text) && /«Премиум»/.test(a[5].text), "названия тарифов");
+const txt = JSON.stringify([...a, ...ACCOUNT_TOUR_STEPS]).toLowerCase();
+ok(!/следит|слежен|meta|instagram/.test(txt), "запрещённые слова");
+console.log("tour: " + n + " проверок OK");

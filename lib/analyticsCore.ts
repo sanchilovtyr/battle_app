@@ -219,11 +219,19 @@ export function scrollReach(hist: number[]): { views: number; reach: number[] } 
 
 // ───────────── отчёт ─────────────
 
+/** Отказ: один просмотр и меньше BOUNCE_SEC секунд активного времени (как в Яндекс Метрике) */
+export const BOUNCE_SEC = 15;
+export const MAX_ACTIVE_SEC = 7200;
+/** Меньше стольких визитов — процент отказов ненадёжен */
+export const BOUNCE_MIN_SESSIONS = 10;
+
 export interface SessionRow {
   id: string;
   visitorId: string;
   startedAt: Date;
   pageViews: number;
+  /** Активное время, сек; -1 или нет — не измерялось */
+  activeSec?: number;
   channel: string;
   source: string;
   medium: string;
@@ -321,7 +329,7 @@ export function resolveRange(q: { days?: number | null; from?: string | null; to
   return { from: periodStart(now, d), to: tomorrow, days: d };
 }
 
-export interface SourceRow {
+export interface SourceRow extends BounceStat {
   channel: string;
   channelLabel: string;
   source: string;
@@ -368,13 +376,42 @@ export interface Report {
     paid: number;
     paidAttributed: number;
     conversionPct: number;
-  };
+  } & BounceStat;
   daily: { day: string; visitors: number; sessions: number }[];
-  channels: { channel: string; label: string; visitors: number; sessions: number; share: number }[];
+  channels: ({ channel: string; label: string; visitors: number; sessions: number; share: number } & BounceStat)[];
   sources: SourceRow[];
   landing: { path: string; sessions: number }[];
   cohorts: CohortRow[];
   conversions: ConversionRow[];
+}
+
+/** Время на сайте измерено (сессии до обновления счётчика не учитываются в отказах) */
+export const isMeasured = (s: { activeSec?: number }) => typeof s.activeSec === "number" && s.activeSec >= 0;
+export const isBounce = (s: { pageViews: number; activeSec?: number }) => isMeasured(s) && s.pageViews <= 1 && (s.activeSec as number) < BOUNCE_SEC;
+
+export interface BounceStat {
+  /** Визитов с измеренным временем */
+  measured: number;
+  bounced: number;
+  /** % отказов среди измеренных; null — нет измеренных визитов */
+  bouncePct: number | null;
+  /** Среднее активное время визита, сек */
+  avgSec: number | null;
+}
+function bounceStat(rows: SessionRow[]): BounceStat {
+  let measured = 0, bounced = 0, sec = 0;
+  for (const s of rows) {
+    if (!isMeasured(s)) continue;
+    measured++;
+    sec += Math.min(MAX_ACTIVE_SEC, s.activeSec as number);
+    if (isBounce(s)) bounced++;
+  }
+  return {
+    measured,
+    bounced,
+    bouncePct: measured ? pct(bounced, measured) : null,
+    avgSec: measured ? Math.round(sec / measured) : null,
+  };
 }
 
 const label = (c: string) => CHANNEL_LABELS[c as Channel] ?? c;
@@ -402,19 +439,21 @@ export function buildReport(input: ReportInput): Report {
 
   // Источники: канал → источник/метка/кампания
   const key = (s: SessionRow) => [s.channel, s.source, s.medium, s.campaign].join("\u0001");
-  const srcMap = new Map<string, { row: SessionRow; v: Set<string>; s: number; pages: number }>();
-  const chMap = new Map<string, { v: Set<string>; s: number }>();
+  const srcMap = new Map<string, { row: SessionRow; v: Set<string>; s: number; pages: number; list: SessionRow[] }>();
+  const chMap = new Map<string, { v: Set<string>; s: number; list: SessionRow[] }>();
   const landMap = new Map<string, number>();
   for (const s of input.sessions) {
     const k = key(s);
-    const e = srcMap.get(k) ?? { row: s, v: new Set<string>(), s: 0, pages: 0 };
+    const e = srcMap.get(k) ?? { row: s, v: new Set<string>(), s: 0, pages: 0, list: [] };
     e.v.add(s.visitorId);
     e.s++;
     e.pages += s.pageViews;
+    e.list.push(s);
     srcMap.set(k, e);
-    const c = chMap.get(s.channel) ?? { v: new Set<string>(), s: 0 };
+    const c = chMap.get(s.channel) ?? { v: new Set<string>(), s: 0, list: [] };
     c.v.add(s.visitorId);
     c.s++;
+    c.list.push(s);
     chMap.set(s.channel, c);
     if (s.landingPath) landMap.set(s.landingPath, (landMap.get(s.landingPath) ?? 0) + 1);
   }
@@ -428,6 +467,7 @@ export function buildReport(input: ReportInput): Report {
       visitors: e.v.size,
       sessions: e.s,
       pagesPerSession: Math.round((e.pages / e.s) * 10) / 10,
+      ...bounceStat(e.list),
     }))
     .sort((a, b) => b.sessions - a.sessions);
   const totalSessions = input.sessions.length;
@@ -437,6 +477,7 @@ export function buildReport(input: ReportInput): Report {
     visitors: c.v.size,
     sessions: c.s,
     share: pct(c.s, totalSessions),
+    ...bounceStat(c.list),
   })).sort((a, b) => b.sessions - a.sessions);
   const landing = Array.from(landMap, ([path, sessions]) => ({ path, sessions }))
     .sort((a, b) => b.sessions - a.sessions)
@@ -530,6 +571,7 @@ export function buildReport(input: ReportInput): Report {
       paid: conversions.length,
       paidAttributed,
       conversionPct: pct(conversions.length, totalUnique),
+      ...bounceStat(input.sessions),
     },
     daily,
     channels,

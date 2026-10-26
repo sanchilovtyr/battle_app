@@ -1,11 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Report } from "@/lib/analyticsCore";
+import { BOUNCE_MIN_SESSIONS, BOUNCE_SEC, type Report } from "@/lib/analyticsCore";
 
 const num = (n: number) => n.toLocaleString("ru-RU");
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" });
+const fmtSec = (n: number | null) => (n == null ? "—" : n < 60 ? `${n} с` : `${Math.floor(n / 60)} мин ${n % 60 ? (n % 60) + " с" : ""}`.trim());
+/** Цвет доли отказов: чем выше, тем хуже. Если визитов мало — серый, без вывода */
+function bounceClass(pct: number | null, measured: number): string {
+  if (pct == null || measured < BOUNCE_MIN_SESSIONS) return "text-muted";
+  if (pct >= 70) return "font-semibold text-red-600";
+  if (pct >= 50) return "font-semibold text-amber-600";
+  return "text-green-700";
+}
+function Bounce({ pct, measured }: { pct: number | null; measured: number }) {
+  if (pct == null) return <span className="text-muted">—</span>;
+  const few = measured < BOUNCE_MIN_SESSIONS;
+  return (
+    <span className={bounceClass(pct, measured)} title={few ? `Мало визитов (${measured}) — процент ненадёжен` : `${measured} визитов с измеренным временем`}>
+      {pct}%{few ? " *" : ""}
+    </span>
+  );
+}
 const fmtDay = (d: string) => d.slice(8, 10) + "." + d.slice(5, 7);
 
 function Tile({ title, value, hint }: { title: string; value: string; hint?: string }) {
@@ -35,6 +52,7 @@ const td = "px-2 py-2 align-top text-sm text-ink-900";
 export default function AnalyticsReport({ query }: { query: string }) {
   const [data, setData] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<"sessions" | "bounce">("sessions");
 
   useEffect(() => {
     let alive = true;
@@ -53,6 +71,14 @@ export default function AnalyticsReport({ query }: { query: string }) {
     };
   }, [query]);
 
+  const sources = data
+    ? [...data.sources].sort((a, b) =>
+        sortBy === "bounce"
+          ? // сначала самые «плохие» среди тех, где достаточно визитов
+            Number(b.measured >= BOUNCE_MIN_SESSIONS) - Number(a.measured >= BOUNCE_MIN_SESSIONS) || (b.bouncePct ?? -1) - (a.bouncePct ?? -1) || b.sessions - a.sessions
+          : b.sessions - a.sessions
+      )
+    : [];
   const maxDay = data ? Math.max(1, ...data.daily.map((d) => d.visitors)) : 1;
 
   return (
@@ -66,13 +92,18 @@ export default function AnalyticsReport({ query }: { query: string }) {
 
       {data && (
         <>
-          <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
             <Tile title="Уникальные посетители" value={num(data.totals.uniqueVisitors)} hint={`из них новых: ${num(data.totals.newVisitors)}`} />
             <Tile title="Визиты (сессии)" value={num(data.totals.sessions)} />
             <Tile
               title="Регистрации"
               value={num(data.totals.registrations)}
               hint={`источник известен: ${num(data.totals.registrationsAttributed)}`}
+            />
+            <Tile
+              title="Показатель отказов"
+              value={data.totals.bouncePct == null ? "—" : `${data.totals.bouncePct}%`}
+              hint={data.totals.measured ? `ср. время визита ${fmtSec(data.totals.avgSec)} · измерено визитов: ${num(data.totals.measured)}` : "данные появятся после обновления счётчика"}
             />
             <Tile
               title="Оформили тариф"
@@ -109,7 +140,7 @@ export default function AnalyticsReport({ query }: { query: string }) {
                   <div className="mb-1 flex items-center justify-between text-sm">
                     <span className="text-ink-900">{c.label}</span>
                     <span className="text-muted">
-                      {num(c.visitors)} посетит. · {num(c.sessions)} визитов · {c.share}%
+                      {num(c.visitors)} посетит. · {num(c.sessions)} визитов · {c.share}% · отказы <Bounce pct={c.bouncePct} measured={c.measured} />
                     </span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-soft">
@@ -120,9 +151,24 @@ export default function AnalyticsReport({ query }: { query: string }) {
             </div>
           </Card>
 
-          <Card title="Источники, каналы и UTM-метки" note="Каждая строка — сочетание источника (utm_source или сайт), канала (utm_medium) и кампании (utm_campaign).">
+          <Card
+            title="Источники, каналы и UTM-метки"
+            note={`Каждая строка — сочетание источника (utm_source или сайт), канала (utm_medium) и кампании (utm_campaign). Отказ — визит, в котором человек посмотрел одну страницу и провёл на сайте меньше ${BOUNCE_SEC} секунд: так видно, какие каналы и кампании приводят нецелевой трафик. Красным выделено от 70%, жёлтым — от 50%. «*» — визитов меньше ${BOUNCE_MIN_SESSIONS}, вывод делать рано.`}
+          >
+            <div className="mb-3 flex items-center gap-2 text-xs text-muted">
+              <span>Сортировать:</span>
+              {(["sessions", "bounce"] as const).map((k) => (
+                <button
+                  key={k}
+                  onClick={() => setSortBy(k)}
+                  className={`rounded-full border px-3 py-1 ${sortBy === k ? "border-ink-900 bg-ink-900 text-white" : "border-line text-ink-900/75 hover:bg-soft"}`}
+                >
+                  {k === "sessions" ? "по визитам" : "по отказам"}
+                </button>
+              ))}
+            </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px]">
+              <table className="w-full min-w-[760px]">
                 <thead>
                   <tr>
                     <th className={th}>Источник</th>
@@ -132,10 +178,12 @@ export default function AnalyticsReport({ query }: { query: string }) {
                     <th className={th}>Посетители</th>
                     <th className={th}>Визиты</th>
                     <th className={th}>Стр./визит</th>
+                    <th className={th}>Отказы</th>
+                    <th className={th}>Время</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.sources.slice(0, 60).map((s, i) => (
+                  {sources.slice(0, 60).map((s, i) => (
                     <tr key={i} className="border-t border-line">
                       <td className={td}>{s.source}</td>
                       <td className={td}>{s.channelLabel}</td>
@@ -144,10 +192,12 @@ export default function AnalyticsReport({ query }: { query: string }) {
                       <td className={td}>{num(s.visitors)}</td>
                       <td className={td}>{num(s.sessions)}</td>
                       <td className={td}>{s.pagesPerSession}</td>
+                      <td className={td}><Bounce pct={s.bouncePct} measured={s.measured} /></td>
+                      <td className={td}>{fmtSec(s.avgSec)}</td>
                     </tr>
                   ))}
                   {data.sources.length === 0 && (
-                    <tr><td className={td} colSpan={7}>Пока нет данных.</td></tr>
+                    <tr><td className={td} colSpan={9}>Пока нет данных.</td></tr>
                   )}
                 </tbody>
               </table>

@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { buildReport, classifyTouch, deviceFromWidth, isBehaviorPath, sanitizeClicks, scrollReach, validSelector, isBotUserAgent, mskDay, normalizePath, periodStart, resolveRange, validId } from "../lib/analyticsCore";
+import { isBounce, isMeasured, buildReport, classifyTouch, deviceFromWidth, isBehaviorPath, sanitizeClicks, scrollReach, validSelector, isBotUserAgent, mskDay, normalizePath, periodStart, resolveRange, validId } from "../lib/analyticsCore";
 
 let n = 0;
 const ok = (name: string, fn: () => void) => { fn(); n++; };
@@ -190,6 +190,41 @@ ok("глубина скролла", () => {
   assert.equal(reach[4], 50);
   assert.equal(reach[9], 50);
   assert.deepEqual(scrollReach([]).reach, new Array(10).fill(0));
+});
+
+// ───────────── отказы ─────────────
+ok("отказ: один просмотр и меньше 15 секунд", () => {
+  assert.equal(isBounce({ pageViews: 1, activeSec: 0 }), true);
+  assert.equal(isBounce({ pageViews: 1, activeSec: 14 }), true);
+  assert.equal(isBounce({ pageViews: 1, activeSec: 15 }), false);
+  assert.equal(isBounce({ pageViews: 2, activeSec: 3 }), false);
+});
+ok("сессии до обновления (-1) и без поля не измерены и не отказы", () => {
+  assert.equal(isMeasured({ activeSec: -1 }), false);
+  assert.equal(isMeasured({}), false);
+  assert.equal(isBounce({ pageViews: 1, activeSec: -1 }), false);
+  assert.equal(isBounce({ pageViews: 1 }), false);
+});
+ok("отчёт: отказы по каналам и кампаниям", () => {
+  const day = periodStart(new Date(), 1);
+  const mk = (i: number, channel: string, campaign: string, pageViews: number, activeSec?: number) => ({
+    id: "s" + i, visitorId: "v" + i, startedAt: new Date(day.getTime() + 3600_000), pageViews, activeSec,
+    channel, source: channel === "paid" ? "yandex" : "google", medium: "", campaign, landingPath: "/",
+  });
+  const sessions = [
+    mk(1, "paid", "a", 1, 2), mk(2, "paid", "a", 1, 5), mk(3, "paid", "a", 1, 60), mk(4, "paid", "a", 3, 90),
+    mk(5, "paid", "b", 1, 40), mk(6, "paid", "b", 1, undefined),
+    mk(7, "search", "", 1, -1),
+  ];
+  const r = buildReport({ from: day, to: new Date(day.getTime() + 86400000), sessions, newVisitors: [], linkedVisitors: [], linkedSessions: [], firstPayments: [], users: [] });
+  const a = r.sources.find((x) => x.campaign === "a")!;
+  assert.equal(a.measured, 4); assert.equal(a.bounced, 2); assert.equal(a.bouncePct, 50); assert.equal(a.avgSec, 39);
+  const b = r.sources.find((x) => x.campaign === "b")!;
+  assert.equal(b.measured, 1); assert.equal(b.bounced, 0); assert.equal(b.bouncePct, 0);
+  const g = r.sources.find((x) => x.source === "google")!;
+  assert.equal(g.measured, 0); assert.equal(g.bouncePct, null); assert.equal(g.avgSec, null);
+  assert.equal(r.totals.measured, 5); assert.equal(r.totals.bounced, 2); assert.equal(r.totals.bouncePct, 40);
+  assert.equal(r.channels.find((c) => c.channel === "paid")!.bouncePct, 40);
 });
 
 console.log(`ВСЕ ТЕСТЫ ПРОШЛИ (${n})`);

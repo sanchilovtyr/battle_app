@@ -470,6 +470,8 @@ model AnalyticsSession {
   startedAt    DateTime @default(now())
   lastSeenAt   DateTime @default(now())
   pageViews    Int      @default(1)
+  /// Активное время на сайте, сек (вкладка открыта и видна). -1 — не измерялось (сессии до обновления)
+  activeSec    Int      @default(-1)
   channel      String   @default("direct")
   source       String   @default("")
   medium       String   @default("")

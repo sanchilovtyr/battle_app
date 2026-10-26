@@ -143,6 +143,7 @@ export async function fetchYandexReport(
   }
   const n = (v: unknown) => (typeof v === "number" ? v : v == null ? null : Number(v));
   let notLoaded = false;
+  let notVerified = false;
   for (const host of candidates) {
     const base = `${YW}/user/${uid}/hosts/${host.host_id}`;
     const qs = "order_by=TOTAL_SHOWS&query_indicator=TOTAL_SHOWS&query_indicator=TOTAL_CLICKS&query_indicator=AVG_SHOW_POSITION";
@@ -171,8 +172,18 @@ export async function fetchYandexReport(
         notLoaded = true;
         continue;
       }
+      if (e instanceof SearchEngineError && e.code === "HOST_NOT_VERIFIED") {
+        notVerified = true;
+        continue;
+      }
       throw e;
     }
+  }
+  if (notVerified && !notLoaded) {
+    const tried = candidates.map((h) => `${h.host_id}${h.verified === false ? " (не подтверждён)" : h.verified ? " (подтверждён)" : ""}`).join(", ");
+    throw new SearchEngineError(
+      `${what}: у аккаунта, под которым выпущен токен (id ${uid}), сайт не подтверждён. Проверено: ${tried}. Создайте токен под тем аккаунтом Яндекса, в котором вы подтвердили сайт (войдите в него и откройте ссылку авторизации заново), и вставьте новый токен.`
+    );
   }
   if (notLoaded) {
     const tried = candidates.map((h) => h.host_id).join(", ");

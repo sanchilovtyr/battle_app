@@ -39,11 +39,67 @@ function writeSess(v: Sess) {
   }
 }
 
+/**
+ * Считает активное время на странице (вкладка открыта и видна) и сообщает его серверу порциями:
+ * каждые 15 секунд активного времени и при уходе со страницы. По этому времени считаются отказы.
+ */
+function startEngagement(vid: string, sid: string): () => void {
+  let active = 0;
+  let last = document.visibilityState === "visible" ? Date.now() : 0;
+  let sent = 0;
+  const tick = () => {
+    if (last) {
+      const n = Date.now();
+      active += n - last;
+      last = n;
+    }
+  };
+  const send = () => {
+    tick();
+    const sec = Math.min(1800, Math.floor(active / 1000));
+    const delta = sec - sent;
+    if (delta <= 0) return;
+    sent = sec;
+    const body = JSON.stringify({ vid, sid, sec: delta });
+    try {
+      // sendBeacon надёжнее всего доходит при закрытии вкладки и переходе на другой сайт
+      if (typeof navigator.sendBeacon === "function" && navigator.sendBeacon("/api/track/engage", new Blob([body], { type: "application/json" }))) return;
+    } catch {
+      /* пробуем обычный запрос */
+    }
+    try {
+      fetch("/api/track/engage", { method: "POST", keepalive: true, headers: { "content-type": "application/json" }, body }).catch(() => {});
+    } catch {
+      /* не критично */
+    }
+  };
+  const onVis = () => {
+    if (document.visibilityState === "hidden") {
+      send();
+      last = 0;
+    } else if (!last) last = Date.now();
+  };
+  const timer = window.setInterval(() => {
+    tick();
+    // порция уходит при достижении 15 секунд (порог отказа) и затем каждые 15 секунд: даже если закрытие вкладки не дойдёт, время не потеряется
+    if (active - sent * 1000 >= 15000) send();
+  }, 2000);
+  document.addEventListener("visibilitychange", onVis);
+  window.addEventListener("pagehide", send);
+  return () => {
+    window.clearInterval(timer);
+    document.removeEventListener("visibilitychange", onVis);
+    window.removeEventListener("pagehide", send);
+    send();
+  };
+}
+
 /** Собственный счётчик посещений: хранит анонимный номер посетителя в cookie и сообщает о просмотре страницы. Работает только на публичных страницах. */
 export default function Tracker() {
   const pathname = usePathname();
 
   useEffect(() => {
+    let cleanup: (() => void) | undefined;
     try {
       // Страницы, показанные в рамке админки (карты кликов), в статистику не попадают
       if (window.top !== window.self) return;
@@ -105,9 +161,12 @@ export default function Tracker() {
           else if (!j.rec) stopRecording();
         })
         .catch(() => {});
+
+      cleanup = startEngagement(vid, sid);
     } catch {
       /* счётчик не должен ломать страницу */
     }
+    return () => cleanup?.();
   }, [pathname]);
 
   return null;

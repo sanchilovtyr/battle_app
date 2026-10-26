@@ -6,6 +6,7 @@ import {
   ClickIn,
   CLICK_GRID,
   Device,
+  MAX_ACTIVE_SEC,
   buildReport,
   classifyTouch,
   Range,
@@ -63,7 +64,7 @@ export async function recordHit(h: HitInput): Promise<{ recorded: boolean }> {
     try {
       recorded = !!h.record;
       await db.analyticsSession.create({
-        data: { id: h.sid, visitorId: h.vid, startedAt: now, lastSeenAt: now, device: h.device ?? "", recorded, ...fields },
+        data: { id: h.sid, visitorId: h.vid, startedAt: now, lastSeenAt: now, device: h.device ?? "", recorded, activeSec: 0, ...fields },
       });
     } catch {
       // параллельный запрос уже создал эту сессию
@@ -94,6 +95,16 @@ export async function recordHit(h: HitInput): Promise<{ recorded: boolean }> {
   }
   await db.analyticsVisitor.update({ where: { id: h.vid }, data });
   return { recorded };
+}
+
+/** Добавляет к сессии активное время (сек) — от счётчика на странице. Сессии до обновления (-1) не трогаем. */
+export async function recordEngagement(vid: string, sid: string, sec: number): Promise<void> {
+  const add = Math.min(1800, Math.max(0, Math.floor(sec)));
+  if (!add) return;
+  await db.analyticsSession.updateMany({
+    where: { id: sid, visitorId: vid, activeSec: { gte: 0, lt: MAX_ACTIVE_SEC } },
+    data: { activeSec: { increment: add } },
+  });
 }
 
 /** Привязывает посетителя (по cookie) к пользователю. Уже привязанного не перезаписывает: источник — первый. */
@@ -145,7 +156,7 @@ const VISITOR_SEL = {
   campaign: true, term: true, content: true, referrerHost: true, landingPath: true,
 };
 const SESSION_SEL = {
-  id: true, visitorId: true, startedAt: true, pageViews: true, channel: true, source: true,
+  id: true, visitorId: true, startedAt: true, pageViews: true, activeSec: true, channel: true, source: true,
   medium: true, campaign: true, landingPath: true,
 };
 

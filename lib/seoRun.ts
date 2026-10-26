@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { KEY_NAMES, getKey } from "@/lib/integrationKeys";
 import { SITE_URL } from "@/lib/blog";
 import { NICHES, nichePath } from "@/lib/niches";
 import { getIndexNowKey, pendingPosts } from "@/lib/indexnowCore";
@@ -109,7 +110,14 @@ export async function runSeoAudit(trigger: "manual" | "cron"): Promise<AuditResu
   for (const p of posts) found.push(...auditPostContent(p, now));
   found.push(...auditPortfolio(posts, now));
   // Если проверка запущена по расписанию прямо сейчас — значит, расписание работает
-  found.push(...auditSetup(process.env as Record<string, string | undefined>, trigger === "cron" ? now : lastCron?.ranAt ?? null, now));
+  // Ключи Яндекс Вебмастера и Google Search Console могут быть введены в админке (таблица IntegrationKey),
+  // а не только в переменных окружения — иначе проверка ошибочно считает их не заданными.
+  const env: Record<string, string | undefined> = { ...(process.env as Record<string, string | undefined>) };
+  for (const name of KEY_NAMES) {
+    const { value } = await getKey(name).catch(() => ({ value: "" }));
+    if (value) env[name] = value;
+  }
+  found.push(...auditSetup(env, trigger === "cron" ? now : lastCron?.ranAt ?? null, now));
 
   // ── обход живых страниц ──
   const siteUrl = (process.env.SEO_CRAWL_BASE_URL || process.env.NEXTAUTH_URL || SITE_URL).replace(/\/$/, "");

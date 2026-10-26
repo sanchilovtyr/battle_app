@@ -7,6 +7,7 @@ import {
   isValidBusinessId,
   sanitizePatch,
   sanitizePlan,
+  lockVectorInPatch,
 } from "@/lib/businessSync";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +32,9 @@ function toData(patch: ReturnType<typeof sanitizePatch>) {
     ...(patch.funnel !== undefined ? { funnelJson: patch.funnel } : {}),
     ...(patch.progress !== undefined ? { progressJson: patch.progress } : {}),
     ...(patch.target !== undefined ? { targetJson: patch.target } : {}),
+    ...(patch.clients !== undefined ? { crmJson: patch.clients } : {}),
+    ...(patch.unit !== undefined ? { unitJson: patch.unit } : {}),
+    ...(patch.risks !== undefined ? { risksJson: patch.risks } : {}),
   };
 }
 
@@ -59,7 +63,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
   }
 
-  const patch = sanitizePatch(body);
+  const patch = lockVectorInPatch(existing?.vectorId, sanitizePatch(body));
   const createdAtRaw = typeof body.createdAt === "string" ? new Date(body.createdAt) : null;
   const createdAt = createdAtRaw && !isNaN(createdAtRaw.getTime()) ? createdAtRaw : new Date();
 
@@ -93,10 +97,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const body = await readBody(req);
   if (!body) return NextResponse.json({ error: "Некорректный или слишком большой запрос" }, { status: 400 });
 
-  const result = await prisma.business.updateMany({
-    where: { id: params.id, userId: user.id },
-    data: toData(sanitizePatch(body)),
-  });
+  const current = await prisma.business.findFirst({ where: { id: params.id, userId: user.id }, select: { vectorId: true } });
+  if (!current) return NextResponse.json({ error: "Бизнес не найден" }, { status: 404 });
+  // вектор аудитории — один раз на бизнес
+  const patch = lockVectorInPatch(current.vectorId, sanitizePatch(body));
+  const result = await prisma.business.updateMany({ where: { id: params.id, userId: user.id }, data: toData(patch) });
   if (result.count === 0) return NextResponse.json({ error: "Бизнес не найден" }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

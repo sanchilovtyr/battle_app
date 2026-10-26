@@ -37,7 +37,7 @@ export default function AboutPage() {
         name: SITE_NAME,
         legalName: EXECUTOR.fullName,
         url: SITE_URL,
-        logo: `${SITE_URL}/logo-mark.png`,
+        logo: `${SITE_URL}/app-icon-512.png`,
         taxID: EXECUTOR.inn,
         telephone: EXECUTOR.phone,
         address: { "@type": "PostalAddress", addressLocality: EXECUTOR.city, addressCountry: "RU" },

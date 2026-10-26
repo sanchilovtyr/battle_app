@@ -21,6 +21,12 @@ export interface PricingPlan {
   checklistAccess: boolean;
   /** Доступны ли "Точки роста" — сквозные рекомендации по чек-листу, воронке и Метрике */
   growthPointsAccess: boolean;
+  /** Доступна ли лёгкая CRM (клиенты, суммы сделок, вклад сервиса) — только «Премиум» */
+  crmAccess: boolean;
+  /** Доступна ли юнит-экономика (CAC, LTV, окупаемость) с автоподстановкой из воронки и CRM — только «Премиум» */
+  unitEconomicsAccess: boolean;
+  /** Доступно ли управление рисками (реестр угроз, сигналы из воронки и CRM) — только «Премиум» */
+  risksAccess: boolean;
 }
 
 export const PLANS: PricingPlan[] = [
@@ -42,6 +48,9 @@ export const PLANS: PricingPlan[] = [
     pdfExportAccess: false,
     checklistAccess: false,
     growthPointsAccess: false,
+    crmAccess: false,
+    unitEconomicsAccess: false,
+    risksAccess: false,
   },
   {
     id: "start",
@@ -61,6 +70,9 @@ export const PLANS: PricingPlan[] = [
     pdfExportAccess: false,
     checklistAccess: false,
     growthPointsAccess: false,
+    crmAccess: false,
+    unitEconomicsAccess: false,
+    risksAccess: false,
   },
   {
     id: "business",
@@ -73,6 +85,7 @@ export const PLANS: PricingPlan[] = [
       "Всё из тарифа «Старт»",
       "Чек-листы с отметками о выполнении",
       "Аналитика: в каком моменте бизнес теряет клиентов",
+      "Дашборд динамики и ROMI: видно, окупается ли продвижение",
       "Определение вектора аудитории и рекомендации по рекламе",
       "Регулярное обновление плана",
       "Техническая поддержка",
@@ -84,6 +97,9 @@ export const PLANS: PricingPlan[] = [
     pdfExportAccess: false,
     checklistAccess: true,
     growthPointsAccess: false,
+    crmAccess: false,
+    unitEconomicsAccess: false,
+    risksAccess: false,
   },
   {
     id: "agency",
@@ -96,7 +112,11 @@ export const PLANS: PricingPlan[] = [
       "Всё из тарифа «Старт»",
       "Чек-листы с отметками о выполнении",
       "Аналитика: в каком моменте бизнес теряет клиентов",
+      "Дашборд динамики и ROMI: видно, окупается ли продвижение",
       "Точки роста: рекомендации на стыке чек-листа, воронки и Метрики",
+      "Управление рисками: что делать, если изменятся законы, конкуренты снизят цены или сорвутся поставки. Сервис показывает свежие новости по вашей теме и изменения на сайтах конкурентов, помогает составить план Б и проверить запас прочности прибыли",
+      "Юнит-экономика: CAC, LTV и окупаемость клиента, данные подставляются из воронки и CRM",
+      "Лёгкая CRM: клиенты, суммы сделок и вклад сервиса в выручку",
       "Определение вектора аудитории и рекомендации по рекламе",
       "Экспорт плана в PDF",
       "Регулярное обновление плана",
@@ -108,6 +128,9 @@ export const PLANS: PricingPlan[] = [
     pdfExportAccess: true,
     checklistAccess: true,
     growthPointsAccess: true,
+    crmAccess: true,
+    unitEconomicsAccess: true,
+    risksAccess: true,
   },
 ];
 

@@ -7,6 +7,9 @@ import { GeneratedPlan } from "./types";
 import { VectorId } from "./vectors";
 import { clearChecklist } from "./checklist";
 import { clearFunnel } from "./funnel";
+import { clearClients } from "./crm";
+import { clearUnitSettings } from "./unitEconomics";
+import { clearRisks } from "./risks";
 import { clearProgressHistory } from "./progressHistory";
 import { markCreated, markDeleted, markDirty, wipeLocalBusinessData } from "./cloudSync";
 
@@ -93,6 +96,9 @@ export function removeBusiness(id: string) {
   safeSet(BUSINESSES_KEY, JSON.stringify(next));
   clearChecklist(id);
   clearFunnel(id);
+  clearClients(id);
+  clearUnitSettings(id);
+  clearRisks(id);
   clearProgressHistory(id);
   markDeleted(id);
 }
@@ -101,9 +107,11 @@ export function getBusiness(id: string): Business | null {
   return getBusinesses().find((b) => b.id === id) ?? null;
 }
 
-/** Обновляет вектор аудитории уже сохранённого бизнеса (кнопка "Пройти заново"). */
+/** Сохраняет вектор аудитории бизнеса. Вектор определяется один раз: если он уже есть, ничего не меняется. */
 export function updateBusinessVector(businessId: string, vectorId: VectorId) {
-  const next = getBusinesses().map((b) => (b.id === businessId ? { ...b, vectorId } : b));
+  const all = getBusinesses();
+  if (all.find((b) => b.id === businessId)?.vectorId) return all;
+  const next = all.map((b) => (b.id === businessId ? { ...b, vectorId } : b));
   safeSet(BUSINESSES_KEY, JSON.stringify(next));
   markDirty(businessId, ["vectorId"]);
   return next;

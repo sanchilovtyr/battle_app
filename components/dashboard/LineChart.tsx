@@ -76,13 +76,43 @@ export default function LineChart({
 
   const all = series.flatMap((s) => s.values.filter((v): v is number => v !== null)).concat(refLines.map((r) => r.value));
   const yMax = niceMax(Math.max(...all, 1));
+  // отрицательные значения (например, ROMI ниже нуля) — ось уходит ниже нуля
+  const rawMin = Math.min(...all, 0);
+  const yStep = yMax / 4;
+  const yMin = rawMin < 0 ? -Math.ceil(-rawMin / yStep) * yStep : 0;
+  const yRange = yMax - yMin;
   const innerW = Math.max(1, width - M.left - M.right);
   const innerH = height - M.top - M.bottom;
   const x = (i: number) => M.left + (n <= 1 ? innerW / 2 : (i / (n - 1)) * innerW);
-  const y = (v: number) => M.top + innerH - (v / yMax) * innerH;
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => t * yMax);
+  const y = (v: number) => M.top + innerH - ((v - yMin) / yRange) * innerH;
+  const ticks = Array.from({ length: Math.round(yRange / yStep) + 1 }, (_, k) => yMin + k * yStep);
   // подписи оси X — не чаще, чем помещаются
   const every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(innerW / 64))));
+
+  // подписи последних значений: если линии заканчиваются рядом, разводим подписи по вертикали, чтобы цифры не налезали друг на друга
+  const endLabelY: Record<string, number> = (() => {
+    const items = series
+      .map((s) => {
+        let li = -1;
+        s.values.forEach((v, i) => {
+          if (v !== null) li = i;
+        });
+        return li >= 0 ? { name: s.name, y: y(s.values[li] as number) + 4 } : null;
+      })
+      .filter((v): v is { name: string; y: number } => v !== null)
+      .sort((a, b) => a.y - b.y);
+    const GAP = 14;
+    for (let i = 1; i < items.length; i++) {
+      if (items[i].y - items[i - 1].y < GAP) items[i].y = items[i - 1].y + GAP;
+    }
+    // не уходим за нижний край графика
+    const maxY = M.top + innerH + 10;
+    for (let i = items.length - 1; i >= 0; i--) {
+      if (items[i].y > maxY) items[i].y = maxY;
+      if (i > 0 && items[i].y - items[i - 1].y < GAP) items[i - 1].y = items[i].y - GAP;
+    }
+    return Object.fromEntries(items.map((it) => [it.name, it.y]));
+  })();
 
   const segments = (s: LineSeries) => {
     const out: { i: number; v: number }[][] = [];
@@ -129,8 +159,8 @@ export default function LineChart({
   return (
     <figure className="rounded-2xl border border-line bg-white p-4 sm:p-5">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <figcaption className="font-display text-base text-ink-900">{title}</figcaption>
+        <div className="max-w-full shrink-0">
+          <figcaption className="whitespace-nowrap font-display text-[15px] text-ink-900 sm:text-base">{title}</figcaption>
           {subtitle && <p className="mt-0.5 text-xs text-muted">{subtitle}</p>}
         </div>
         {hasData && (
@@ -202,6 +232,7 @@ export default function LineChart({
                 </text>
               </g>
             ))}
+            {yMin < 0 && <line x1={M.left} x2={width - M.right} y1={y(0)} y2={y(0)} stroke="#111525" strokeOpacity={0.45} strokeWidth={1.5} />}
             {/* ось X */}
             {categories.map((c, i) =>
               i % every === 0 || i === n - 1 ? (
@@ -248,7 +279,7 @@ export default function LineChart({
                     if (v !== null) li = i;
                   });
                   return li >= 0 ? (
-                    <text x={x(li) + 9} y={y(s.values[li] as number) + 4} fontSize={11} fontWeight={700} fill="#111525">
+                    <text x={x(li) + 9} y={endLabelY[s.name] ?? y(s.values[li] as number) + 4} fontSize={11} fontWeight={700} fill="#111525">
                       {format(s.values[li] as number)}
                     </text>
                   ) : null;

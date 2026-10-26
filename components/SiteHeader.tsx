@@ -29,20 +29,20 @@ export default function SiteHeader({ ctaHref = "/#wizard" }: { ctaHref?: string 
       <div className="mx-auto flex h-[68px] max-w-6xl items-center justify-between gap-3 px-4 sm:h-[76px] sm:gap-4 sm:px-5 md:px-8">
         <Link href="/" className="flex shrink-0 items-center">
           <Image
-            src="/logo-mark.png"
+            src="/logo-compact.png"
             alt="Ключевое слово"
-            width={106}
-            height={47}
+            width={920}
+            height={256}
             priority
-            className="h-8 w-auto sm:hidden"
+            className="h-[28px] w-auto min-[400px]:h-8 sm:hidden"
           />
           <Image
             src="/logo-full.png"
-            alt="Ключевое слово — маркетинговое агентство"
-            width={264}
-            height={47}
+            alt="Ключевое слово"
+            width={1476}
+            height={256}
             priority
-            className="hidden h-9 w-auto sm:block"
+            className="hidden h-10 w-auto sm:block"
           />
         </Link>
         <div className="flex items-center gap-2.5 sm:gap-5">
@@ -88,7 +88,7 @@ export default function SiteHeader({ ctaHref = "/#wizard" }: { ctaHref?: string 
           </button>
           <a
             href={ctaHref}
-            className="whitespace-nowrap rounded-[9px] bg-brand px-3.5 py-2.5 text-xs font-extrabold text-ink-900 shadow-[0_10px_25px_rgba(0,0,0,0.1)] transition-transform hover:-translate-y-0.5 sm:px-5 sm:py-3 sm:text-sm"
+            className="whitespace-nowrap rounded-[9px] bg-brand px-3 py-2.5 min-[400px]:px-3.5 text-xs font-extrabold text-ink-900 shadow-[0_10px_25px_rgba(0,0,0,0.1)] transition-transform hover:-translate-y-0.5 sm:px-5 sm:py-3 sm:text-sm"
           >
             Построить план
           </a>

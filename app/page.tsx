@@ -52,13 +52,22 @@ export default function Home() {
                 Без карты и звонка
               </span>
               <span className="before:mr-1.5 before:text-brand before:content-['✦']">
-                В разы дешевле агентства
+                В разы дешевле агентства и маркетолога
               </span>
               <span className="before:mr-1.5 before:text-brand before:content-['✦']">
                 Работает с Яндекс.Метрикой
               </span>
               <span className="before:mr-1.5 before:text-brand before:content-['✦']">
                 Маркетолог не нужен
+              </span>
+              <span className="before:mr-1.5 before:text-brand before:content-['✦']">
+                Показывает новые законы и ходы конкурентов
+              </span>
+              <span className="before:mr-1.5 before:text-brand before:content-['✦']">
+                Управление рисками и план Б
+              </span>
+              <span className="before:mr-1.5 before:text-brand before:content-['✦']">
+                Юнит-экономика и лёгкая CRM
               </span>
             </div>
             <div className="mt-6">
@@ -145,14 +154,24 @@ export default function Home() {
       {/* PRICING */}
       <section id="pricing" className="scroll-mt-[68px] bg-gradient-to-b from-white to-[#FBFBFD] py-16 sm:scroll-mt-[76px] md:py-24">
         <div className="mx-auto max-w-6xl px-5 md:px-8">
-          <div className="mx-auto mb-10 max-w-xl text-center">
+          <div className="mx-auto mb-10 max-w-2xl text-center">
             <h2 className="mb-3 font-display text-3xl tracking-tight text-ink-900 md:text-4xl">
               Подписка, которая окупается первым тестом
             </h2>
             <p className="text-muted">
               Бесплатно вы можете построить и посмотреть план один раз. Подписка открывает
-              чек-листы, обновления, экспорт и многое другое. Агентство или маркетолог обойдутся
-              от 60 000 ₽/мес — самый дорогой наш тариф дешевле более чем в 8 раз.
+              чек-листы, обновления и инструменты: дашборд с ROMI, CRM и юнит-экономику.
+            </p>
+            <p className="mt-3 text-muted">
+              Агентство берёт от 20 000 ₽/мес за одну услугу и от 80 000 ₽ за стратегическое
+              сопровождение, маркетолог в штате стоит от 30 000 ₽ плюс налоги. А если собирать всё
+              самому, платные тарифы двух популярных в России CRM-систем стоят от 599 ₽ за
+              пользователя в месяц или от 2 490 ₽ в месяц за команду до 5 человек — и это без
+              аналитики, дашбордов и расчётов.{" "}
+              <span className="font-medium text-ink-900">
+                Наша подписка собирает всё в одном месте: значительно дешевле агентства и
+                маркетолога и выгоднее набора отдельных сервисов.
+              </span>
             </p>
           </div>
           <PricingSection />
@@ -171,7 +190,8 @@ export default function Home() {
               С чем вы сравниваете
             </h2>
             <p className="text-muted">
-              Наём агентства или маркетолога — не единственные варианты. Вот честное сравнение.
+              Наём агентства или маркетолога — не единственные варианты: можно ещё собрать всё
+              самому из отдельных сервисов. Вот честное сравнение.
             </p>
           </div>
           <ComparisonSection />

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/db";
+import { touchActivity } from "@/lib/inactivity";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,7 @@ export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
 
+  await touchActivity(user.id);
   const rows = await prisma.business.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } });
   return NextResponse.json({
     businesses: rows.map((b: any) => ({
@@ -22,6 +24,9 @@ export async function GET() {
       funnel: b.funnelJson ?? [],
       progress: b.progressJson ?? [],
       target: b.targetJson ?? {},
+      clients: b.crmJson ?? [],
+      unit: b.unitJson ?? {},
+      risks: b.risksJson ?? [],
     })),
   });
 }

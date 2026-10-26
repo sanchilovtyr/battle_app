@@ -51,6 +51,24 @@ function PlanBlock({ title, entries }: { title: string; entries: PlanEntry[] }) 
   );
 }
 
+/**
+ * Заголовок в одну строку на телефоне: размер шрифта подбирается по ширине экрана и длине текста.
+ * Если даже при минимальном размере не помещается (длинный заголовок), остаётся обычный перенос.
+ * От md размер задаёт обычный класс.
+ */
+const CHAR_EM = 0.74; // средняя ширина символа шрифта заголовков в em
+function fitProps(text: string, kind: "h1" | "h2"): { className: string; style?: React.CSSProperties } {
+  const maxPx = kind === "h1" ? 24 : 20;
+  const minPx = kind === "h1" ? 17 : 15;
+  const fits = text.length * CHAR_EM * minPx <= 320; // ширина контента на узком телефоне (360 px)
+  if (!fits) return { className: kind === "h1" ? "text-2xl md:text-4xl" : "text-xl" };
+  const style = { "--fs": `min(${maxPx}px, calc((100vw - 40px) / ${(text.length * CHAR_EM).toFixed(2)}))` } as React.CSSProperties;
+  return {
+    className: kind === "h1" ? "max-md:whitespace-nowrap max-md:text-[length:var(--fs)] md:text-4xl" : "max-md:whitespace-nowrap max-md:text-[length:var(--fs)] md:text-xl",
+    style,
+  };
+}
+
 export default function NichePage({ params }: { params: { niche: string } }) {
   const n = getNiche(params.niche);
   if (!n) notFound();
@@ -93,7 +111,7 @@ export default function NichePage({ params }: { params: { niche: string } }) {
         <nav aria-label="Хлебные крошки" className="mb-6 text-sm text-muted">
           <Link href="/" className="hover:text-ink-900">Главная</Link> <span aria-hidden>/</span> {n.name}
         </nav>
-        <h1 className="mb-5 font-display text-2xl leading-tight tracking-tight text-ink-900 md:text-4xl">{n.h1}</h1>
+        <h1 className={`mb-5 font-display leading-tight tracking-tight text-ink-900 ${fitProps(n.h1, "h1").className}`} style={fitProps(n.h1, "h1").style}>{n.h1}</h1>
         <p className="mb-8 text-lg leading-relaxed text-muted">{n.lead}</p>
         <Link
           href="/#wizard"
@@ -103,7 +121,7 @@ export default function NichePage({ params }: { params: { niche: string } }) {
         </Link>
 
         <section className="mb-12">
-          <h2 className="mb-4 font-display text-xl text-ink-900">{n.obstaclesTitle}</h2>
+          <h2 className={`mb-4 font-display text-ink-900 ${fitProps(n.obstaclesTitle, "h2").className}`} style={fitProps(n.obstaclesTitle, "h2").style}>{n.obstaclesTitle}</h2>
           <ul className="list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-ink-900 md:text-base">
             {n.obstacles.map((o) => (
               <li key={o}>{o}</li>
@@ -123,11 +141,7 @@ export default function NichePage({ params }: { params: { niche: string } }) {
 
         {cases.length > 0 && (
           <section className="mb-12">
-            <h2 className="mb-2 font-display text-xl text-ink-900">Кейсы нашего агентства</h2>
-            <p className="mb-5 text-sm text-muted">
-              Это результаты, которые наша команда получила как агентство до запуска сервиса «Ключевое слово». Это не результаты
-              сервиса и не гарантия такого же итога в вашем бизнесе.
-            </p>
+            <h2 className="mb-5 font-display text-xl text-ink-900">Кейсы</h2>
             <div className="grid gap-4 sm:grid-cols-2">
               {cases.map((c) => (
                 <article key={c.title} className="rounded-2xl border border-line bg-soft p-5">

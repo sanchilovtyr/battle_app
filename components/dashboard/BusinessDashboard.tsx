@@ -16,6 +16,7 @@ import {
 } from "@/lib/dashboard";
 import KpiTile from "./KpiTile";
 import LineChart from "./LineChart";
+import RomiCard from "./RomiCard";
 
 // Цвета рядов: проверены валидатором палитр (разделимы при дальтонизме); порядок фиксирован
 const C1 = "#7658F6"; // фиолетовый — основной ряд
@@ -81,7 +82,7 @@ export default function BusinessDashboard({ businessId, businessName, snapshots,
           <span className="rounded-full bg-violet-soft px-4 py-2 text-xs font-bold text-violet">Демо · вымышленные данные</span>
         ) : (
           <Link
-            href={`/business/${businessId}#analytics`}
+            href={`/business/${businessId}/losses`}
             className="rounded-full bg-ink-900 px-5 py-2.5 text-sm font-medium text-white transition hover:-translate-y-0.5 hover:bg-ink-800"
           >
             Внести показатели
@@ -116,7 +117,7 @@ export default function BusinessDashboard({ businessId, businessName, snapshots,
             появятся графики и сравнение с прошлым периодом.
           </p>
           <Link
-            href={`/business/${businessId}#analytics`}
+            href={`/business/${businessId}/losses`}
             className="mt-5 inline-block rounded-full bg-brand px-6 py-3 text-sm font-extrabold text-ink-900 transition-transform hover:-translate-y-0.5"
           >
             Внести первые показатели
@@ -184,6 +185,8 @@ export default function BusinessDashboard({ businessId, businessName, snapshots,
             </ul>
           )}
 
+          <RomiCard latest={latest} previous={previous} />
+
           {periods < 2 && (
             <p className="mb-4 rounded-xl bg-soft p-4 text-sm text-muted">
               Внесён один период — динамика появится, когда добавите следующий. Раз в месяц достаточно.
@@ -225,8 +228,8 @@ export default function BusinessDashboard({ businessId, businessName, snapshots,
             />
             {hasCost ? (
               <LineChart
-                title="Стоимость заявки и продажи, ₽"
-                subtitle="Рекламный бюджет периода ÷ число заявок или продаж"
+                title="Стоимость заявки и продажи"
+                subtitle="В рублях: рекламный бюджет периода ÷ число заявок или продаж"
                 categories={cats}
                 fullLabels={full}
                 format={rub}
@@ -240,6 +243,16 @@ export default function BusinessDashboard({ businessId, businessName, snapshots,
                 <p className="mb-1 font-display text-base text-ink-900">Стоимость заявки и продажи</p>
                 Укажите рекламный бюджет за период в дополнительных полях при внесении показателей — график появится сам.
               </div>
+            )}
+            {metrics.some((m) => m.romi !== null) && (
+              <LineChart
+                title="ROMI по периодам"
+                subtitle="Выше нуля — продвижение окупилось"
+                categories={cats}
+                fullLabels={full}
+                format={(n) => `${fmtNum(n, 1)}%`}
+                series={[{ name: "ROMI", color: C3, values: metrics.map((m) => m.romi) }]}
+              />
             )}
             {hasReviews && (
               <LineChart

@@ -4,9 +4,11 @@
 
 import type { GeneratedPlan } from "./types";
 import { isPlanSizeReasonable } from "./planValidation";
+import { CLIENT_STATUSES, CRM_SOURCES, MAX_CLIENTS } from "./crmCore";
+import { MAX_RISKS, REVIEW_PERIODS, RISK_CATEGORIES, RISK_STATUSES } from "./risksCore";
 
 export const MAX_BUSINESSES_PER_USER = 25;
-export const MAX_BODY_BYTES = 600_000;
+export const MAX_BODY_BYTES = 800_000;
 const MAX_SNAPSHOTS = 24;
 const MAX_PROGRESS = 180;
 const ID_RE = /^[A-Za-z0-9_-]{6,64}$/;
@@ -50,6 +52,91 @@ export function sanitizeFunnel(input: unknown) {
       dropReason: oneOf(r.dropReason, REASONS),
       reviewsCount: num(r.reviewsCount) === undefined ? undefined : Math.round(num(r.reviewsCount) as number),
       reviewsRating: num(r.reviewsRating, 0, 5),
+    });
+  }
+  return out;
+}
+
+export function sanitizeClients(input: unknown) {
+  if (!Array.isArray(input)) return [];
+  const out = [];
+  const seen = new Set<string>();
+  for (const raw of input.slice(0, MAX_CLIENTS)) {
+    if (!raw || typeof raw !== "object") continue;
+    const r = raw as Record<string, unknown>;
+    const id = str(r.id, 64);
+    const name = (str(r.name, 120) ?? "").trim();
+    if (!id || !name || seen.has(id)) continue;
+    seen.add(id);
+    const status = oneOf(r.status, CLIENT_STATUSES) ?? "new";
+    const createdAt = str(r.createdAt, 40) ?? new Date().toISOString();
+    const amount = status === "lost" ? undefined : num(r.amount, 0, 1e9);
+    const note = (str(r.note, 500) ?? "").trim();
+    const closedAt = status === "won" || status === "lost" ? str(r.closedAt, 40) ?? str(r.updatedAt, 40) ?? createdAt : undefined;
+    out.push({
+      id,
+      createdAt,
+      updatedAt: str(r.updatedAt, 40) ?? createdAt,
+      name,
+      contact: (str(r.contact, 120) ?? "").trim(),
+      source: oneOf(r.source, CRM_SOURCES) ?? "other",
+      viaService: r.viaService === true,
+      status,
+      ...(amount !== undefined ? { amount } : {}),
+      ...(note ? { note } : {}),
+      ...(closedAt ? { closedAt } : {}),
+    });
+  }
+  return out;
+}
+
+export function sanitizeUnit(input: unknown): { marginPct?: number; purchases?: number } {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {};
+  const r = input as Record<string, unknown>;
+  const m = num(r.marginPct, 0, 100);
+  const p = num(r.purchases, 1, 100);
+  return { ...(m !== undefined ? { marginPct: m } : {}), ...(p !== undefined ? { purchases: p } : {}) };
+}
+
+export function sanitizeRisks(input: unknown) {
+  if (!Array.isArray(input)) return [];
+  const out = [];
+  const seen = new Set<string>();
+  const scale = (v: unknown) => Math.round(num(v, 1, 5) ?? 3);
+  const date = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
+  for (const raw of input.slice(0, MAX_RISKS)) {
+    if (!raw || typeof raw !== "object") continue;
+    const r = raw as Record<string, unknown>;
+    const id = str(r.id, 64);
+    const title = (str(r.title, 200) ?? "").trim();
+    if (!id || !title || seen.has(id)) continue;
+    seen.add(id);
+    const createdAt = str(r.createdAt, 40) ?? new Date().toISOString();
+    const signal = (str(r.signal, 600) ?? "").trim();
+    const measures = (str(r.measures, 1500) ?? "").trim();
+    const plan = (str(r.plan, 1500) ?? "").trim();
+    const every = num(r.reviewEveryDays, 1, 365);
+    const note = (str(r.note, 600) ?? "").trim();
+    const watch = (str(r.watch, 300) ?? "").trim();
+    const templateId = str(r.templateId, 60);
+    const reviewAt = date(r.reviewAt);
+    out.push({
+      id,
+      createdAt,
+      updatedAt: str(r.updatedAt, 40) ?? createdAt,
+      title,
+      category: oneOf(r.category, RISK_CATEGORIES) ?? "economy",
+      probability: scale(r.probability),
+      impact: scale(r.impact),
+      ...(signal ? { signal } : {}),
+      ...(measures ? { measures } : {}),
+      ...(plan ? { plan } : {}),
+      ...(note ? { note } : {}),
+      ...(watch ? { watch } : {}),
+      status: oneOf(r.status, RISK_STATUSES) ?? "open",
+      ...(every !== undefined && REVIEW_PERIODS.includes(every) ? { reviewEveryDays: every } : {}),
+      ...(templateId && /^[A-Za-z0-9_-]+$/.test(templateId) ? { templateId } : {}),
+      ...(reviewAt ? { reviewAt } : {}),
     });
   }
   return out;
@@ -107,6 +194,8 @@ export function sanitizePlan(input: unknown): GeneratedPlan | null {
   return p;
 }
 
+const KNOWN_VECTOR_IDS = ["sage", "architect", "speaker", "navigator", "alchemist", "player", "champion", "scout", "swimmer"];
+
 export interface BusinessPatch {
   name?: string;
   businessType?: string;
@@ -115,6 +204,9 @@ export interface BusinessPatch {
   funnel?: ReturnType<typeof sanitizeFunnel>;
   progress?: ReturnType<typeof sanitizeProgress>;
   target?: ReturnType<typeof sanitizeTarget>;
+  clients?: ReturnType<typeof sanitizeClients>;
+  unit?: ReturnType<typeof sanitizeUnit>;
+  risks?: ReturnType<typeof sanitizeRisks>;
 }
 
 /** Из тела запроса берём только присланные поля — отсутствующее не затираем. */
@@ -123,10 +215,24 @@ export function sanitizePatch(body: unknown): BusinessPatch {
   const out: BusinessPatch = {};
   if ("name" in b) out.name = (str(b.name, 200) ?? "").trim() || "Мой бизнес";
   if ("businessType" in b) out.businessType = str(b.businessType, 100) ?? "";
-  if ("vectorId" in b) out.vectorId = b.vectorId === null ? null : str(b.vectorId, 40) ?? null;
+  if ("vectorId" in b) {
+    const v = b.vectorId === null ? null : str(b.vectorId, 40) ?? null;
+    out.vectorId = v === null || KNOWN_VECTOR_IDS.includes(v) ? v : null;
+  }
   if ("checklist" in b) out.checklist = sanitizeChecklist(b.checklist);
   if ("funnel" in b) out.funnel = sanitizeFunnel(b.funnel);
   if ("progress" in b) out.progress = sanitizeProgress(b.progress);
   if ("target" in b) out.target = sanitizeTarget(b.target);
+  if ("clients" in b) out.clients = sanitizeClients(b.clients);
+  if ("unit" in b) out.unit = sanitizeUnit(b.unit);
+  if ("risks" in b) out.risks = sanitizeRisks(b.risks);
   return out;
+}
+
+/** Вектор аудитории определяется для бизнеса один раз: если он уже задан на сервере,
+ *  любые попытки его изменить или сбросить (в том числе из старой вкладки) игнорируются. */
+export function lockVectorInPatch<T extends { vectorId?: string | null }>(existingVectorId: string | null | undefined, patch: T): T {
+  if (!existingVectorId || !("vectorId" in patch)) return patch;
+  const { vectorId: _ignored, ...rest } = patch;
+  return rest as T;
 }

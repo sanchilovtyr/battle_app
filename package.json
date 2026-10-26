@@ -15,6 +15,7 @@
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",
     "@prisma/client": "^5.22.0",
+    "@rrweb/record": "2.2.0",
     "bcryptjs": "^3.0.3",
     "next": "14.2.35",
     "next-auth": "^4.24.15",
@@ -22,7 +23,8 @@
     "pdf-lib": "^1.17.1",
     "prisma": "^5.22.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "rrweb": "2.2.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { sendRegistrationEmail, sendAdminNewUserNotification } from "@/lib/mailer";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
+import { linkVisitorToUser, vidFromCookieHeader } from "@/lib/analyticsStore";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -33,13 +34,16 @@ export async function POST(req: Request) {
 
   const passwordHash = await bcrypt.hash(password, 10);
 
-  await prisma.user.create({
+  const created = await prisma.user.create({
     data: {
       email,
       passwordHash,
       subscription: { create: { planId: "trial", status: "active" } },
     },
   });
+
+  // Запоминаем, с какого источника пришёл человек (если у него есть cookie счётчика)
+  await linkVisitorToUser(vidFromCookieHeader(req.headers.get("cookie")), created.id);
 
   // Письма отправляем в фоне, не дожидаясь их результата — иначе зависший
   // или медленный SMTP-сервер завесил бы весь ответ на регистрацию.

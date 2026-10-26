@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { verifyAdminToken, ADMIN_COOKIE_NAME } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db";
+import { unlinkUserFromAnalytics } from "@/lib/analyticsStore";
 import { PLANS } from "@/lib/plans";
 
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
@@ -11,6 +12,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   }
 
   try {
+    await unlinkUserFromAnalytics(params.id);
     await prisma.user.delete({ where: { id: params.id } });
     return NextResponse.json({ ok: true });
   } catch (e) {

@@ -6,7 +6,10 @@ import { createSign } from "crypto";
 type FetchFn = typeof fetch;
 const TIMEOUT_MS = 15000;
 
-export class SearchEngineError extends Error {}
+export class SearchEngineError extends Error {
+  /** Код ошибки от самого сервиса (например, HOST_NOT_LOADED у Яндекса) */
+  code?: string;
+}
 
 async function getJson(fetchFn: FetchFn, url: string, init: RequestInit, what: string): Promise<any> {
   let res: Response;
@@ -20,7 +23,15 @@ async function getJson(fetchFn: FetchFn, url: string, init: RequestInit, what: s
   }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new SearchEngineError(`${what}: ошибка ${res.status}. ${text.slice(0, 200)}`.trim());
+    let code: string | undefined;
+    try {
+      code = JSON.parse(text)?.error_code;
+    } catch {
+      // ответ не JSON
+    }
+    const err = new SearchEngineError(`${what}: ошибка ${res.status}. ${text.slice(0, 200)}`.trim());
+    err.code = code;
+    throw err;
   }
   return res.json().catch(() => ({}));
 }
@@ -61,9 +72,9 @@ export interface YandexHostInfo {
   verified?: boolean;
 }
 
-/** Находит в списке сайтов тот, что соответствует нужному адресу (или явно заданному host_id). */
-export function pickYandexHost(hosts: YandexHostInfo[], siteUrl: string, explicit?: string): YandexHostInfo | null {
-  if (explicit) return hosts.find((h) => h.host_id === explicit) ?? { host_id: explicit };
+/** Подходящие сайты из списка Вебмастера, лучшие первыми: https и подтверждённые в приоритете. */
+export function rankYandexHosts(hosts: YandexHostInfo[], siteUrl: string, explicit?: string): YandexHostInfo[] {
+  if (explicit) return [hosts.find((h) => h.host_id === explicit) ?? { host_id: explicit }];
   let target = "";
   try {
     target = new URL(siteUrl).hostname.replace(/^www\./, "");
@@ -77,14 +88,14 @@ export function pickYandexHost(hosts: YandexHostInfo[], siteUrl: string, explici
       return "";
     }
   };
-  const matches = hosts.filter((h) => norm(h.ascii_host_url) === target || norm(h.unicode_host_url) === target);
-  // https и подтверждённый — в приоритете
-  return (
-    matches.find((h) => h.host_id.startsWith("https:") && h.verified) ??
-    matches.find((h) => h.verified) ??
-    matches[0] ??
-    null
-  );
+  const score = (h: YandexHostInfo) => (h.host_id.startsWith("https:") ? 2 : 0) + (h.verified ? 1 : 0);
+  return hosts
+    .filter((h) => norm(h.ascii_host_url) === target || norm(h.unicode_host_url) === target)
+    .sort((a, b) => score(b) - score(a));
+}
+
+export function pickYandexHost(hosts: YandexHostInfo[], siteUrl: string, explicit?: string): YandexHostInfo | null {
+  return rankYandexHosts(hosts, siteUrl, explicit)[0] ?? null;
 }
 
 export function parseYandexQueries(data: any): YandexQuery[] {
@@ -124,33 +135,52 @@ export async function fetchYandexReport(
 
   const hostsData = await getJson(fetchFn, `${YW}/user/${uid}/hosts`, { headers }, what);
   const hosts: YandexHostInfo[] = Array.isArray(hostsData?.hosts) ? hostsData.hosts : [];
-  const host = pickYandexHost(hosts, siteUrl, explicitHost);
-  if (!host) {
+  const candidates = rankYandexHosts(hosts, siteUrl, explicitHost);
+  if (candidates.length === 0) {
     throw new SearchEngineError(
       `${what}: сайт ${siteUrl} не найден среди ваших сайтов. Добавьте и подтвердите его в Вебмастере или укажите host_id вручную.`
     );
   }
-  const base = `${YW}/user/${uid}/hosts/${host.host_id}`;
-  const qs = "order_by=TOTAL_SHOWS&query_indicator=TOTAL_SHOWS&query_indicator=TOTAL_CLICKS&query_indicator=AVG_SHOW_POSITION";
-  const [summary, popular, diag] = await Promise.all([
-    getJson(fetchFn, `${base}/summary`, { headers }, what),
-    getJson(fetchFn, `${base}/search-queries/popular?${qs}`, { headers }, what).catch(() => ({})),
-    getJson(fetchFn, `${base}/diagnostics`, { headers }, what).catch(() => ({})),
-  ]);
   const n = (v: unknown) => (typeof v === "number" ? v : v == null ? null : Number(v));
-  return {
-    host: host.host_id,
-    hostUrl: host.ascii_host_url ?? host.host_id,
-    verified: Boolean(host.verified ?? true),
-    sqi: n(summary?.sqi),
-    searchablePages: n(summary?.searchable_pages_count),
-    excludedPages: n(summary?.excluded_pages_count),
-    problemCounts: summary?.problems && typeof summary.problems === "object" ? summary.problems : {},
-    queries: parseYandexQueries(popular).slice(0, 25),
-    dateFrom: popular?.date_from ?? null,
-    dateTo: popular?.date_to ?? null,
-    problems: parseYandexProblems(diag),
-  };
+  let notLoaded = false;
+  for (const host of candidates) {
+    const base = `${YW}/user/${uid}/hosts/${host.host_id}`;
+    const qs = "order_by=TOTAL_SHOWS&query_indicator=TOTAL_SHOWS&query_indicator=TOTAL_CLICKS&query_indicator=AVG_SHOW_POSITION";
+    try {
+      const [summary, popular, diag] = await Promise.all([
+        getJson(fetchFn, `${base}/summary`, { headers }, what),
+        getJson(fetchFn, `${base}/search-queries/popular?${qs}`, { headers }, what).catch(() => ({})),
+        getJson(fetchFn, `${base}/diagnostics`, { headers }, what).catch(() => ({})),
+      ]);
+      return {
+        host: host.host_id,
+        hostUrl: host.ascii_host_url ?? host.host_id,
+        verified: Boolean(host.verified ?? true),
+        sqi: n(summary?.sqi),
+        searchablePages: n(summary?.searchable_pages_count),
+        excludedPages: n(summary?.excluded_pages_count),
+        problemCounts: summary?.problems && typeof summary.problems === "object" ? summary.problems : {},
+        queries: parseYandexQueries(popular).slice(0, 25),
+        dateFrom: popular?.date_from ?? null,
+        dateTo: popular?.date_to ?? null,
+        problems: parseYandexProblems(diag),
+      };
+    } catch (e) {
+      // Яндекс ещё не загрузил этот вариант сайта — пробуем следующий (например, https вместо http)
+      if (e instanceof SearchEngineError && e.code === "HOST_NOT_LOADED") {
+        notLoaded = true;
+        continue;
+      }
+      throw e;
+    }
+  }
+  if (notLoaded) {
+    const tried = candidates.map((h) => h.host_id).join(", ");
+    throw new SearchEngineError(
+      `${what}: Яндекс ещё не загрузил данные по сайту (проверено: ${tried}). Это нормально для только что добавленного сайта: обычно данные появляются в течение 1–3 суток. Если сайт добавлен давно, добавьте в Вебмастере версию с https и сделайте её главным зеркалом.`
+    );
+  }
+  throw new SearchEngineError(`${what}: не удалось получить данные.`);
 }
 
 // ───────────────────────── Google Search Console ─────────────────────────

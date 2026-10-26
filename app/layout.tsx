@@ -4,6 +4,13 @@ import Providers from "@/components/Providers";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://m-navi.ru"),
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
   title: "Ключевое слово — персональный план продвижения бизнеса",
   description:
     "Пошаговый план продвижения и привлечения клиентов из интернета для малого и среднего бизнеса в России. Отвечаете на 4 вопроса о бизнесе — получаете конкретный маршрут: что делать сначала, что потом и почему.",
@@ -51,7 +58,7 @@ const organizationJsonLd = {
   "@type": "Organization",
   name: "Ключевое слово",
   url: "https://m-navi.ru",
-  logo: "https://m-navi.ru/logo-mark.png",
+  logo: "https://m-navi.ru/app-icon-512.png",
   description:
     "Сервис персональных маркетинговых планов для малого и среднего бизнеса.",
   areaServed: "RU",
@@ -75,14 +82,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="text/javascript"
           dangerouslySetInnerHTML={{
             __html: `
-              (function(m,e,t,r,i,k,a){
+              if (window.top === window.self) (function(m,e,t,r,i,k,a){
                   m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
                   m[i].l=1*new Date();
                   for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
                   k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
               })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=112483717', 'ym');
 
-              ym(112483717, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
+              if (window.top === window.self) ym(112483717, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
             `,
           }}
         />

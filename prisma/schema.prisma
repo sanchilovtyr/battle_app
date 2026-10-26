@@ -22,6 +22,10 @@ model User {
   newsSeenAt   DateTime?
   // Тикет поддержки закрыт админом (открывается снова, когда пользователь пишет)
   supportClosed Boolean  @default(false)
+  // Последняя активность (вход или работа в личном кабинете) — аккаунты без активности 30 дней удаляются
+  lastActiveAt       DateTime  @default(now())
+  // Когда отправлено предупреждение об удалении неактивного аккаунта
+  inactivityWarnedAt DateTime?
 
   subscription        Subscription?
   businesses          Business[]
@@ -29,6 +33,8 @@ model User {
   payments            Payment[]
   passwordResetTokens PasswordResetToken[]
   metrikaConnections  MetrikaConnection[]
+
+  @@index([lastActiveAt])
 }
 
 model Subscription {
@@ -61,6 +67,10 @@ model Business {
   funnelJson    Json? // показатели воронки по периодам
   progressJson  Json? // история выполнения плана по дням
   targetJson    Json? // цель на месяц
+  crmJson       Json? // клиенты лёгкой CRM
+  unitJson      Json? // допущения юнит-экономики (маржа, покупок на клиента)
+  risksJson     Json? // реестр рисков («Управление рисками»)
+  competitors   Competitor[]
 
   @@index([userId])
 }
@@ -305,4 +315,216 @@ model Payment {
   amountKopecks  Int
   status         String // pending | succeeded | canceled
   createdAt      DateTime @default(now())
+  /// Промокод, по которому была скидка (amountKopecks — уже со скидкой)
+  promoCodeId    String?
+  discountKopecks Int     @default(0)
+}
+
+/// Промокоды: скидка на первый месяц «Премиума» для пользователей на бесплатном тарифе. Заводятся в админке.
+model PromoCode {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  percent     Int
+  planId      String   @default("agency")
+  active      Boolean  @default(true)
+  expiresAt   DateTime?
+  maxUses     Int?
+  usedCount   Int      @default(0)
+  note        String   @default("")
+  createdAt   DateTime @default(now())
+  redemptions PromoRedemption[]
+}
+
+/// Один пользователь — один раз на каждый промокод (уникальная пара). Создаётся после успешной оплаты.
+model PromoRedemption {
+  id        String    @id @default(cuid())
+  promoId   String
+  promo     PromoCode @relation(fields: [promoId], references: [id], onDelete: Cascade)
+  userId    String
+  paymentId String?
+  createdAt DateTime  @default(now())
+
+  @@unique([promoId, userId])
+  @@index([userId])
+}
+
+/// «Управление рисками»: ленты новостей и законов (RSS/Atom), которые добавляет администратор.
+/// Свежие записи подбираются под угрозы пользователей по ключевым словам.
+model MonitorSource {
+  id            String        @id @default(cuid())
+  name          String
+  url           String        @unique
+  enabled       Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  lastFetchedAt DateTime?
+  /// ok | error
+  lastStatus    String        @default("")
+  lastError     String        @default("")
+  lastItems     Int           @default(0)
+  items         MonitorItem[]
+}
+
+model MonitorItem {
+  id          String        @id @default(cuid())
+  sourceId    String
+  source      MonitorSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  /// sha256 адреса записи — чтобы одна новость не сохранялась дважды
+  linkHash    String        @unique
+  title       String
+  link        String
+  summary     String        @default("")
+  publishedAt DateTime
+  createdAt   DateTime      @default(now())
+
+  @@index([publishedAt])
+}
+
+/// «Управление рисками»: страницы конкурентов, за которыми следит пользователь (до 3 на бизнес).
+/// Раз в сутки сервис сравнивает текст страницы со вчерашним и сохраняет, что изменилось.
+model Competitor {
+  id            String             @id @default(cuid())
+  businessId    String
+  business      Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name          String
+  url           String
+  createdAt     DateTime           @default(now())
+  lastCheckedAt DateTime?
+  /// ok | error | robots (сайт запрещает автоматическую проверку)
+  lastStatus    String             @default("")
+  lastError     String             @default("")
+  snapshotTitle String             @default("")
+  /// Текст страницы построчно (не больше 40 000 символов) — для сравнения со следующей проверкой
+  snapshotText  String             @default("")
+  snapshotAt    DateTime?
+  changes       CompetitorChange[]
+
+  @@index([businessId])
+  @@index([lastCheckedAt])
+}
+
+model CompetitorChange {
+  id           String     @id @default(cuid())
+  competitorId String
+  competitor   Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  businessId   String
+  detectedAt   DateTime   @default(now())
+  added        String[]   @default([])
+  removed      String[]   @default([])
+  /// Изменилась бóльшая часть страницы (редизайн или динамический блок)
+  large        Boolean    @default(false)
+  seen         Boolean    @default(false)
+
+  @@index([businessId, detectedAt])
+}
+
+/// «Управление рисками»: библиотека типовых угроз. Встроенные записи лежат в коде; здесь — их правки и скрытие
+/// (builtin = true, id как у встроенной записи; пустой title — запись только скрыта) и новые записи администратора.
+model RiskTemplateRow {
+  id          String   @id
+  builtin     Boolean  @default(false)
+  hidden      Boolean  @default(false)
+  title       String   @default("")
+  category    String   @default("economy")
+  what        String   @default("")
+  signal      String   @default("")
+  measures    String   @default("")
+  plan        String   @default("")
+  probability Int      @default(3)
+  impact      Int      @default(3)
+  every       Int      @default(30)
+  keywords    String   @default("")
+  types       String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// Собственная аналитика: посетитель (по первому cookie) и его первый источник
+model AnalyticsVisitor {
+  id           String   @id
+  firstSeenAt  DateTime @default(now())
+  lastSeenAt   DateTime @default(now())
+  /// Пользователь, в которого превратился посетитель (после регистрации или входа)
+  userId       String?
+  linkedAt     DateTime?
+  channel      String   @default("direct")
+  source       String   @default("")
+  medium       String   @default("")
+  campaign     String   @default("")
+  term         String   @default("")
+  content      String   @default("")
+  referrerHost String   @default("")
+  landingPath  String   @default("/")
+
+  @@index([userId])
+  @@index([firstSeenAt])
+}
+
+/// Сессия: серия просмотров с перерывом не больше 30 минут; у каждой сессии свой источник
+model AnalyticsSession {
+  id           String   @id
+  visitorId    String
+  /// desktop | tablet | mobile
+  device       String   @default("")
+  /// Идёт ли запись сессии для вебвизора
+  recorded     Boolean  @default(false)
+  startedAt    DateTime @default(now())
+  lastSeenAt   DateTime @default(now())
+  pageViews    Int      @default(1)
+  channel      String   @default("direct")
+  source       String   @default("")
+  medium       String   @default("")
+  campaign     String   @default("")
+  term         String   @default("")
+  content      String   @default("")
+  referrerHost String   @default("")
+  landingPath  String   @default("/")
+
+  @@index([startedAt])
+  @@index([visitorId, startedAt])
+}
+
+/// Вебвизор: куски записи сессии (события rrweb, сжатые gzip). Хранятся 30 дней.
+model AnalyticsReplayChunk {
+  id        String   @id @default(cuid())
+  sessionId String
+  at        DateTime @default(now())
+  bytes     Int
+  data      Bytes
+
+  @@index([sessionId, at])
+  @@index([at])
+}
+
+/// Карта кликов: счётчики по странице, устройству, элементу и месту внутри элемента (сетка 20×20)
+model AnalyticsClick {
+  id       String   @id
+  path     String
+  device   String
+  selector String
+  xb       Int
+  yb       Int
+  count    Int      @default(0)
+  lastAt   DateTime @default(now())
+
+  @@index([path, device])
+  @@index([lastAt])
+}
+
+/// Карта скроллинга: сколько просмотров страницы закончилось на какой глубине (bucket = глубина/10%, 0..10)
+model AnalyticsScroll {
+  id     String   @id
+  path   String
+  device String
+  bucket Int
+  count  Int      @default(0)
+  lastAt DateTime @default(now())
+
+  @@index([path, device])
+  @@index([lastAt])
+}
+
+/// Настройки аналитики (запись сессий вкл/выкл, доля записываемых сессий)
+model AnalyticsSetting {
+  key   String @id
+  value String
 }

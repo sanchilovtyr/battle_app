@@ -48,6 +48,12 @@ export async function POST() {
     return NextResponse.json({ ok: true, result });
   } catch (e) {
     console.error("SEO-монитор: ошибка проверки", e);
-    return NextResponse.json({ error: "Не удалось выполнить проверку. Если вы только что обновили код, выполните npx prisma db push." }, { status: 500 });
+    // Ошибку показываем только администратору: так видно настоящую причину, а не общую подсказку
+    const raw = e instanceof Error ? e.message : String(e);
+    const detail = raw.replace(/\s+/g, " ").trim().slice(-300);
+    const hint = /does not exist|P2021|P2022|column|table/i.test(raw)
+      ? " Похоже, в базе нет нужных таблиц или колонок: выполните npx prisma db push."
+      : "";
+    return NextResponse.json({ error: `Не удалось выполнить проверку.${hint} Причина: ${detail}` }, { status: 500 });
   }
 }

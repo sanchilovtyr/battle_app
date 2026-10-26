@@ -299,6 +299,21 @@ ok(pendingPosts([pp({ published: false })], now).length === 0 && pendingPosts([p
     try { await SE.fetchYandexReport("bad", "https://m-navi.ru", undefined, fakeY); } catch (e) { denied = (e as Error).message; }
     ok(denied.includes("доступ отклонён"), "Вебмастер: неверный токен даёт понятную ошибку");
 
+    // Сайт, который Яндекс ещё не загрузил: пробуем следующий вариант, а если все пустые — понятная ошибка
+    {
+      const mk = (okHost: string | null) => (async (url: string) => {
+        if (url.endsWith("/v4/user")) return new Response(JSON.stringify({ user_id: 7 }), { status: 200 });
+        if (url.endsWith("/hosts")) return new Response(JSON.stringify({ hosts: [{ host_id: "https:m-navi.ru:443", ascii_host_url: "https://m-navi.ru", verified: true }, { host_id: "http:m-navi.ru:80", ascii_host_url: "http://m-navi.ru", verified: true }] }), { status: 200 });
+        const good = okHost && url.includes(`/hosts/${okHost}/`);
+        if (!good) return new Response(JSON.stringify({ host_id: null, error_code: "HOST_NOT_LOADED", error_message: "not loaded" }), { status: 404 });
+        return new Response(JSON.stringify(url.endsWith("/summary") ? { sqi: 10 } : {}), { status: 200 });
+      }) as unknown as typeof fetch;
+      const r1 = await SE.fetchYandexReport("tok", "https://m-navi.ru", undefined, mk("http:m-navi.ru:80"));
+      ok(r1.host === "http:m-navi.ru:80" && r1.sqi === 10, "Вебмастер: если https ещё не загружен, берётся другой вариант сайта");
+      let msg = "";
+      try { await SE.fetchYandexReport("tok", "https://m-navi.ru", undefined, mk(null)); } catch (e) { msg = (e as Error).message; }
+      ok(msg.includes("ещё не загрузил") && msg.includes("1–3 суток"), "Вебмастер: HOST_NOT_LOADED даёт понятное объяснение");
+    }
     // Google: настоящий RSA-ключ, проверяем подпись JWT
     const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048, privateKeyEncoding: { type: "pkcs8", format: "pem" }, publicKeyEncoding: { type: "spki", format: "pem" } });
     const jsonText = JSON.stringify({ type: "service_account", client_email: "bot@proj.iam.gserviceaccount.com", private_key: privateKey });
@@ -332,6 +347,264 @@ ok(pendingPosts([pp({ published: false })], now).length === 0 && pendingPosts([p
     ok(m.from === "admin" && m.imageUrl === "/api/support/image/abc" && m.email === "a@b.ru", "тикеты: сообщение для клиента с адресом вложения");
     const m2 = Sh.toClientMessage({ id: "x", from: "weird", body: "", createdAt: new Date() }, "a@b.ru");
     ok(m2.from === "user" && m2.imageUrl === undefined, "тикеты: неизвестный автор считается пользователем, вложения нет");
+  }
+  // ── вектор один раз на бизнес и удаление неактивных аккаунтов ──
+  {
+    const Bs = await import("../lib/businessSync");
+    const kept = Bs.lockVectorInPatch("sage", Bs.sanitizePatch({ vectorId: "champion", name: "Новое имя" }));
+    ok(!("vectorId" in kept) && kept.name === "Новое имя", "вектор: если уже определён, попытка изменить игнорируется, остальное сохраняется");
+    const reset = Bs.lockVectorInPatch("sage", Bs.sanitizePatch({ vectorId: null }));
+    ok(!("vectorId" in reset), "вектор: сбросить уже определённый нельзя");
+    const first = Bs.lockVectorInPatch(null, Bs.sanitizePatch({ vectorId: "scout" }));
+    ok(first.vectorId === "scout", "вектор: первый раз сохраняется");
+    ok(Bs.sanitizePatch({ vectorId: "hacker" }).vectorId === null, "вектор: неизвестное значение отбрасывается");
+
+    const In = await import("../lib/inactivityCore");
+    const nowI = new Date("2026-10-11T12:00:00Z");
+    const ago = (d: number) => new Date(nowI.getTime() - d * 86400000);
+    const user = (idle: number, warnedAgo: number | null, sub: any = null) => ({ id: "u", email: "a@b.ru", lastActiveAt: ago(idle), inactivityWarnedAt: warnedAgo === null ? null : ago(warnedAgo), subscription: sub });
+    ok(In.decideInactivityAction(user(10, null), nowI) === "keep", "неактивные: активный недавно — не трогаем");
+    ok(In.decideInactivityAction(user(22, null), nowI) === "keep", "неактивные: 22 дня — ещё рано предупреждать");
+    ok(In.decideInactivityAction(user(23, null), nowI) === "warn", "неактивные: с 23-го дня — предупреждение");
+    ok(In.decideInactivityAction(user(25, 2), nowI) === "keep", "неактивные: после письма ждём срок");
+    ok(In.decideInactivityAction(user(31, null), nowI) === "warn", "неактивные: без письма не удаляем, сначала предупреждаем");
+    ok(In.decideInactivityAction(user(31, 1), nowI) === "keep", "неактивные: после письма должно пройти минимум 3 дня");
+    ok(In.decideInactivityAction(user(31, 4), nowI) === "delete", "неактивные: 31 день и письмо 4 дня назад — удаляем");
+    ok(In.decideInactivityAction(user(40, 20), nowI) === "delete", "неактивные: давно неактивный с письмом — удаляем");
+    const paid = { planId: "business", status: "active", currentPeriodEnd: new Date(nowI.getTime() + 5 * 86400000) };
+    ok(In.decideInactivityAction(user(90, 30, paid), nowI) === "keep", "неактивные: оплаченная подписка защищает аккаунт");
+    const expired = { planId: "business", status: "cancelled", currentPeriodEnd: ago(2) };
+    ok(In.decideInactivityAction(user(90, 30, expired), nowI) === "delete", "неактивные: истёкшая подписка не защищает");
+    ok(In.decideInactivityAction(user(90, 30, { planId: "trial", status: "active", currentPeriodEnd: new Date(nowI.getTime() + 864e5) }), nowI) === "delete", "неактивные: пробный тариф не защищает");
+    const loggedBack = { ...user(5, 6), inactivityWarnedAt: ago(6) };
+    ok(In.decideInactivityAction(loggedBack, nowI) === "keep", "неактивные: вернувшийся пользователь остаётся");
+  }
+  {
+    const PK = await import("../lib/publishKeyCore");
+    const key = PK.generatePublishKey();
+    ok(key.startsWith("kslv_") && key.length > 40, "ключ публикации: формат и длина");
+    const h = PK.hashPublishKey(key);
+    ok(PK.keyMatches(key, h) && PK.keyMatches(`  ${key} `, h), "ключ публикации: верный ключ проходит");
+    ok(!PK.keyMatches(key + "x", h) && !PK.keyMatches("", h) && !PK.keyMatches(key, ""), "ключ публикации: неверный/пустой не проходит");
+    ok(PK.bearerFrom("Bearer abc123") === "abc123" && PK.bearerFrom("abc") === "" && PK.bearerFrom(null) === "", "ключ публикации: разбор заголовка");
+    const t0 = Date.parse("2026-10-13T12:00:00Z");
+    const iso = (ms: number) => new Date(t0 + ms).toISOString();
+    ok(PK.checkPublishMode({ publishMode: "draft" }, t0).ok, "публикация по ключу: черновик разрешён");
+    ok(!PK.checkPublishMode({ publishMode: "now" }, t0).ok, "публикация по ключу: мгновенная запрещена");
+    ok(!PK.checkPublishMode({ publishMode: "schedule", publishAt: iso(10 * 60000) }, t0).ok, "публикация по ключу: ближе чем через час запрещена");
+    ok(PK.checkPublishMode({ publishMode: "schedule", publishAt: iso(26 * 3600000) }, t0).ok, "публикация по ключу: через сутки разрешена");
+    ok(!PK.checkPublishMode({ publishMode: "schedule", publishAt: iso(100 * 86400000) }, t0).ok, "публикация по ключу: дальше 90 дней запрещена");
+    ok(!PK.checkPublishMode({ publishMode: "schedule", publishAt: "мусор" }, t0).ok, "публикация по ключу: кривая дата запрещена");
+    const lim = PK.makeFailLimiter(3, 1000);
+    for (let i = 0; i < 3; i++) lim.fail("ip", 0);
+    ok(lim.blocked("ip", 500) && !lim.blocked("ip", 1500) && !lim.blocked("other", 0), "ключ публикации: ограничитель перебора");
+  }
+  {
+    const D = await import("../lib/dashboard");
+    ok(D.romiPercent(150000, 100000) === 50, "ROMI: 150 000 выручки на 100 000 расходов = 50%");
+    ok(D.romiPercent(80000, 100000) === -20, "ROMI: выручка меньше расходов — отрицательный");
+    ok(D.romiPercent(1000, 0) === null && D.romiPercent(null, 1000) === null && D.romiPercent(1000, null) === null, "ROMI: без расходов или дохода не считается");
+    ok(D.romiWithMargin(200000, 100000, 40) === -20, "ROMI по прибыли: 200 000 × 40% = 80 000 против 100 000 расходов");
+    ok(D.romiWithMargin(200000, 100000, 0) === null && D.romiWithMargin(200000, 100000, 150) === null, "ROMI по прибыли: маржа вне 1–100 не принимается");
+    ok(D.romiReturnPerRuble(50) === 1.5 && D.romiReturnPerRuble(-20) === 0.8 && D.romiReturnPerRuble(null) === null, "ROMI: сколько рублей выручки с рубля вложений");
+    const m = D.periodMetrics([
+      { id: "a", createdAt: "2026-09-01", label: "Сентябрь 2026", visitors: 500, leads: 50, sales: 20, repeat: 3, adSpend: 20000, avgReceipt: 2500 },
+      { id: "b", createdAt: "2026-10-01", label: "Октябрь 2026", visitors: 500, leads: 50, sales: 20, repeat: 3 },
+    ] as never);
+    ok(m[0].romi === 150, "ROMI в периоде: 20 × 2500 = 50 000 при расходах 20 000 → 150%");
+    ok(m[1].romi === null, "ROMI в периоде без бюджета — нет значения");
+  }
+  // ── лёгкая CRM ──
+  {
+    const C = await import("../lib/crmCore");
+    const Bc = await import("../lib/businessSync");
+    const now2 = new Date("2026-10-14T12:00:00+03:00");
+    const mk = (o: Record<string, unknown>) => ({ id: String(Math.random()).slice(2), createdAt: "2026-10-01T09:00:00Z", updatedAt: "2026-10-01T09:00:00Z", name: "К", contact: "", source: "yandex_direct", viaService: true, status: "new", ...o }) as never;
+    const list = [
+      mk({ status: "won", amount: 10000, closedAt: "2026-10-05T09:00:00Z" }),
+      mk({ status: "won", amount: 5000, closedAt: "2026-09-20T09:00:00Z" }),
+      mk({ status: "won", amount: 3000, viaService: false, source: "referral", closedAt: "2026-10-06T09:00:00Z" }),
+      mk({ status: "lost", closedAt: "2026-10-02T09:00:00Z" }),
+      mk({ status: "in_work" }),
+    ];
+    const st = C.computeCrmStats(list, now2, 4490);
+    ok(st.total === 5 && st.won === 3 && st.lost === 1 && st.active === 1, "CRM: счётчики статусов");
+    ok(st.revenue === 18000 && st.avgCheck === 6000, "CRM: выручка и средний чек");
+    ok(st.conversion === 60, "CRM: конверсия 3 из 5 = 60%");
+    ok(st.service.total === 4 && st.service.won === 2 && st.service.revenue === 15000, "CRM: клиенты от сервиса");
+    ok(st.service.monthRevenue === 10000 && st.service.monthWon === 1, "CRM: за месяц только октябрьские оплаты");
+    ok(st.paybackMonth === 2.2, "CRM: 10 000 / 4 490 = 2.2×: " + st.paybackMonth);
+    ok(st.bySource[0].source === "yandex_direct" && st.bySource[0].revenue === 15000, "CRM: источники отсортированы по выручке");
+    const empty = C.computeCrmStats([], now2, 4490);
+    ok(empty.conversion === null && empty.avgCheck === null && empty.paybackMonth === null, "CRM: пусто — нет значений");
+    ok(C.computeCrmStats(list, now2, 0).paybackMonth === null, "CRM: без цены тарифа окупаемость не считается");
+    ok(C.parsePrice("4 490 ₽") === 4490 && C.parsePrice("0 ₽") === 0 && C.parsePrice(undefined) === 0, "CRM: цена тарифа из строки");
+    const w = C.withStatus(mk({ status: "won", amount: 100, closedAt: "2026-10-05T09:00:00Z" }), "in_work", "2026-10-14T00:00:00Z");
+    ok(w.amount === 100 && w.closedAt === undefined && w.status === "in_work", "CRM: из «Оплатил» назад — дата закрытия сброшена, сумма сделки остаётся");
+    ok(C.withStatus(w, "lost", "2026-10-14T00:00:00Z").amount === undefined, "CRM: «Не купил» — суммы нет");
+    const w2 = C.withStatus(mk({ status: "won", amount: 100, closedAt: "2026-10-05T09:00:00Z" }), "won", "2026-10-14T00:00:00Z");
+    ok(w2.closedAt === "2026-10-05T09:00:00Z" && w2.amount === 100, "CRM: повторный «Оплатил» не двигает дату закрытия");
+    const csv = C.clientsToCsv([mk({ name: 'Иван; "Тест"', note: "строка\nдве", status: "won", amount: 100 })], { yandex_direct: "Яндекс Директ" });
+    ok(csv.startsWith("\uFEFFДата;Имя") && csv.includes('"Иван; ""Тест"""') && csv.includes("Оплатил;100"), "CRM: CSV экранирует ; и кавычки");
+
+    const san = Bc.sanitizeClients([
+      { id: "a1", name: "  Анна ", contact: "x".repeat(500), source: "bogus", viaService: "yes", status: "won", amount: -5 },
+      { id: "a1", name: "Дубль" },
+      { id: "a2", name: "" },
+      { id: "a3", name: "Борис", status: "lost", amount: 999, note: "  заметка " },
+      "мусор",
+    ]);
+    ok(san.length === 2, "CRM-сервер: дубли и пустые имена отброшены: " + san.length);
+    ok(san[0].name === "Анна" && san[0].contact.length === 120 && san[0].source === "other" && san[0].viaService === false, "CRM-сервер: поля очищены");
+    ok(san[0].amount === 0 && san[0].closedAt !== undefined, "CRM-сервер: отрицательная сумма → 0, у оплаты есть дата закрытия");
+    ok(Bc.sanitizeClients([{ id: "k1", name: "Я", status: "in_work", amount: 7000 }])[0].amount === 7000, "CRM-сервер: у «В работе» сумма сохраняется");
+    ok(C.computeCrmStats([mk({ status: "in_work", amount: 7000 }), mk({ status: "new", amount: 3000 }), mk({ status: "won", amount: 1000, closedAt: "2026-10-05T09:00:00Z" })], now2, 0).pipeline === 10000, "CRM: ожидаемые сделки суммируются, выручка только по оплаченным");
+    ok(san[1].amount === undefined && san[1].note === "заметка", "CRM-сервер: у «Не купил» суммы нет");
+    ok(Bc.sanitizeClients(Array.from({ length: 400 }, (_, i) => ({ id: "c" + i, name: "n" }))).length === 300, "CRM-сервер: не больше 300 клиентов");
+    ok(Bc.sanitizePatch({ clients: [{ id: "z", name: "Я" }] }).clients?.length === 1 && Bc.sanitizePatch({ name: "x" }).clients === undefined, "CRM-сервер: отсутствующее поле не затирается");
+  }
+  // ── управление рисками (внешние угрозы) ──
+  {
+    const R = await import("../lib/risksCore");
+    const Br = await import("../lib/businessSync");
+    const P = await import("../lib/plans");
+    const nowR = new Date("2026-10-19T12:00:00Z");
+    type RiskT = import("../lib/risksCore").Risk;
+    const mk = (o: Partial<RiskT>): RiskT => ({
+      id: "r" + Math.random(), createdAt: "2026-10-01T00:00:00Z", updatedAt: "2026-10-01T00:00:00Z", title: "Угроза", category: "legal",
+      probability: 3, impact: 3, status: "open", ...o,
+    });
+    ok(R.riskScore({ probability: 4, impact: 5 }) === 20 && R.riskLevel(20) === "high" && R.riskLevel(15) === "high", "риски: 4×5=20 — высокий, порог высокого 15");
+    ok(R.riskLevel(14) === "medium" && R.riskLevel(8) === "medium" && R.riskLevel(7) === "low" && R.riskLevel(1) === "low", "риски: границы среднего (8–14) и низкого");
+    ok(R.riskScore({ probability: 9, impact: -3 }) === 5 && R.clampScale("мусор") === 3, "риски: шкала зажата в 1…5, мусор → 3");
+    ok(R.clampPeriod(14) === 14 && R.clampPeriod(5) === 30 && R.clampPeriod("x") === 30, "риски: периодичность — только из списка, иначе раз в месяц");
+
+    const all = Object.values(R.NICHE_RISKS).flat().concat(R.UNIVERSAL_RISKS);
+    ok(new Set(all.map((x) => x.id)).size === all.length, "риски: id типовых угроз уникальны");
+    ok(all.every((x) => x.title && x.what && x.signal && x.measures && x.plan && x.probability >= 1 && x.probability <= 5 && x.impact >= 1 && x.impact <= 5), "риски: у каждой типовой угрозы есть тексты (за чем следим, подготовка, план Б) и оценки 1–5");
+    ok(all.every((x) => R.RISK_CATEGORIES.includes(x.category) && R.REVIEW_PERIODS.includes(x.every)), "риски: категории и периодичность типовых угроз допустимы");
+    ok(!all.some((x) => /meta|facebook|instagram|инстаграм|фейсбук/i.test(x.title + x.what + x.signal + x.measures + x.plan)), "риски: в базе нет продуктов Meta");
+    const cats = new Set(R.UNIVERSAL_RISKS.map((x) => x.category));
+    ok(["legal", "competitors", "politics", "supply", "economy", "society", "platforms", "force"].every((c) => cats.has(c as import("../lib/risksCore").RiskCategory)), "риски: универсальная база покрывает все 8 внешних категорий");
+    ok(R.UNIVERSAL_RISKS.some((x) => /границ/i.test(x.title)) && R.UNIVERSAL_RISKS.some((x) => /нов\S* закон/i.test(x.title)) && R.UNIVERSAL_RISKS.some((x) => /конкурент добавил/i.test(x.title)), "риски: в базе есть закрытие границ, новые законы и новое УТП конкурента");
+    ok(!all.some((x) => /заявк|лид|воронк/i.test(x.title)), "риски: в названиях нет внутренних утечек воронки (это раздел «Где вы теряете клиентов»)");
+    for (const bt of ["retail", "services", "horeca", "b2b", "online_edu", "ecommerce", "other"] as const) {
+      ok(R.NICHE_RISKS[bt].length >= 2 && R.risksForBusiness(bt).length === R.UNIVERSAL_RISKS.length + R.NICHE_RISKS[bt].length, "риски: база для типа «" + bt + "» = универсальные + нишевые");
+    }
+    ok(R.risksForBusiness("неизвестно").length === R.UNIVERSAL_RISKS.length + R.NICHE_RISKS.other.length, "риски: неизвестный тип бизнеса → набор «другое»");
+    ok(R.risksForBusiness("Услуги").length === R.risksForBusiness("services").length && R.risksForBusiness("B2B").some((x) => x.id.startsWith("b-")), "риски: тип бизнеса, сохранённый подписью («Услуги», «B2B»), тоже находит свой набор");
+
+    const tpl = R.UNIVERSAL_RISKS.find((x) => x.id === "x-competitor-usp")!;
+    const fromTpl = R.riskFromTemplate(tpl, nowR, () => "id1");
+    ok(fromTpl.templateId === tpl.id && fromTpl.status === "open" && fromTpl.reviewEveryDays === 14 && fromTpl.reviewAt === "2026-11-02", "риски: из шаблона конкурентов — проверять раз в 2 недели (следующая 02.11)");
+    ok(!!fromTpl.plan && !!fromTpl.measures && !!fromTpl.signal, "риски: из шаблона переносятся «за чем следим», подготовка и план Б");
+    ok(R.nextReviewAt({ status: "controlled", reviewEveryDays: 7 }, nowR) === undefined && R.nextReviewAt({ status: "open", reviewEveryDays: 7 }, nowR) === "2026-10-26", "риски: у закрытого риска проверки нет, у открытого — через заданный срок");
+
+    const reg = [
+      mk({ id: "a", title: "A", probability: 5, impact: 5, plan: "действую" }),
+      mk({ id: "b", title: "B", probability: 3, impact: 3, reviewAt: "2026-10-24" }),
+      mk({ id: "c", title: "C", probability: 4, impact: 4, reviewAt: "2026-10-01" }),
+      mk({ id: "d", title: "D", probability: 5, impact: 5, status: "controlled", reviewAt: "2026-09-01" }),
+      mk({ id: "e", title: "E", probability: 1, impact: 2, reviewAt: "2026-12-01" }),
+    ];
+    const sum = R.summarizeRisks(reg, nowR);
+    ok(sum.total === 5 && sum.high === 2 && sum.medium === 1 && sum.low === 1 && sum.controlled === 1, "риски: сводка — 2 высоких, 1 средний, 1 низкий, 1 под контролем");
+    ok(sum.noPlan === 2, "риски: «без плана» — высокие и средние без подготовки и плана Б (B и C): " + sum.noPlan);
+    ok(sum.reviewDue === 1 && !R.isReviewDue(reg[3], nowR) && R.isReviewDue(reg[2], nowR), "риски: просрочена проверка только у активного риска C");
+    ok(sum.checkSoon.map((x) => x.id).join() === "c,b", "риски: «проверить на неделе» — просроченный C и B (24.10), без E и закрытого, просроченные первыми: " + sum.checkSoon.map((x) => x.id).join());
+    ok(sum.top.map((x) => x.id).join() === "a,c,b", "риски: топ-3 по опасности без закрытых");
+    ok(R.sortRisks(reg).map((x) => x.id).join() === "a,c,b,e,d", "риски: порядок — по оценке, закрытые в конце");
+    const g = R.heatGrid(reg);
+    ok(g[4][4] === 1 && g[3][3] === 1 && g[2][2] === 1 && g[1][0] === 1 && g.flat().reduce((x, y) => x + y, 0) === 4, "риски: тепловая карта считает только активные риски, влияние по строкам");
+
+    // стресс-тест по юнит-экономике
+    const base = { spend: 60000, customers: 20, avgCheck: 5000, marginPct: 40, purchases: 3 };
+    const st = R.stressTest(base)!;
+    ok(!!st && st.base.cac === 3000 && st.base.profitPerPurchase === 2000, "стресс: база — CAC 3 000, прибыль с покупки 2 000");
+    const row = (id: string) => st.rows.find((x) => x.id === id)!;
+    ok(row("cost20").profitPerPurchase === 1400, "стресс: себестоимость +20% (60%→72% от чека) — прибыль с покупки 5 000×28% = 1 400: " + row("cost20").profitPerPurchase);
+    ok(row("cost10").profitPerPurchase === 1700 && row("cost30").profitPerPurchase === 1100, "стресс: +10% → 1 700, +30% → 1 100");
+    ok(row("cac30").profitPerPurchase === 2000 && row("cac30").ltvCac === 1.5, "стресс: цена привлечения +30% — прибыль с покупки та же, LTV÷CAC 6 000 / 3 900 = 1,5");
+    ok(row("disc10").profitPerPurchase === 1500, "стресс: скидка 10% при той же себестоимости — 5 000×0,9 − 3 000 = 1 500: " + row("disc10").profitPerPurchase);
+    ok(row("cost30").verdict === "weak" && row("cac50").verdict === "weak" && st.rows.length === 6, "стресс: итоги по сценариям и 6 сценариев");
+    const harsh = R.stressTest({ ...base, marginPct: 20, purchases: 1 })!;
+    ok(harsh.rows.find((x) => x.id === "cost30")!.verdict === "loss" && harsh.rows.find((x) => x.id === "cost30")!.firstDealProfit !== null && harsh.rows.find((x) => x.id === "cost30")!.ltvCac === null, "стресс: разовая покупка — вместо LTV÷CAC считается прибыль с первой покупки, при +30% себестоимости уходит в минус");
+    ok(R.stressTest({ ...base, marginPct: null }) === null && R.stressTest({ ...base, spend: null }) === null && R.stressTest({ ...base, avgCheck: null }) === null, "стресс: без маржи, расходов или чека не считается");
+
+    // сервер
+    const san = Br.sanitizeRisks([
+      { id: "r1", title: "  Угроза  ", category: "bogus", probability: 9, impact: 0, status: "weird", signal: "s".repeat(900), measures: " м ", plan: " п ", reviewEveryDays: 14, reviewAt: "2026-11-01", templateId: "x-law-change" },
+      { id: "r1", title: "Дубль" },
+      { id: "r2", title: "" },
+      { id: "r3", title: "Третий", reviewAt: "завтра", reviewEveryDays: 5, templateId: "плохой id!" },
+      "мусор",
+    ]);
+    ok(san.length === 2, "риски-сервер: дубли и пустые названия отброшены: " + san.length);
+    ok(san[0].title === "Угроза" && san[0].category === "economy" && san[0].probability === 5 && san[0].impact === 1 && san[0].status === "open", "риски-сервер: поля очищены, шкала зажата, неизвестная категория → «экономика»");
+    ok(san[0].signal?.length === 600 && san[0].measures === "м" && san[0].plan === "п" && san[0].reviewEveryDays === 14 && san[0].reviewAt === "2026-11-01" && san[0].templateId === "x-law-change", "риски-сервер: тексты обрезаны, план Б, периодичность, дата и шаблон сохранены");
+    ok(san[1].reviewAt === undefined && san[1].templateId === undefined && san[1].reviewEveryDays === undefined, "риски-сервер: кривая дата, id шаблона и недопустимая периодичность отброшены");
+    ok(Br.sanitizeRisks(Array.from({ length: 90 }, (_, i) => ({ id: "x" + i, title: "t" }))).length === R.MAX_RISKS, "риски-сервер: не больше " + R.MAX_RISKS);
+    ok(Br.sanitizeRisks("мусор").length === 0 && Br.sanitizePatch({ name: "x" }).risks === undefined && Br.sanitizePatch({ risks: [{ id: "z", title: "Я" }] }).risks?.length === 1, "риски-сервер: не массив — пусто, отсутствующее поле не затирается");
+
+    // тарифы
+    ok(P.PLANS.filter((p) => p.risksAccess).map((p) => p.id).join() === "agency", "риски: доступ только на «Премиум»");
+    ok(P.getPlan("agency").features.some((f) => f.startsWith("Управление рисками")) && P.PLANS.filter((p) => p.id !== "agency").every((p) => !p.features.some((f) => f.startsWith("Управление рисками"))), "риски: строка в описании только у «Премиум»");
+  }
+  // ── юнит-экономика ──
+  {
+    const U = await import("../lib/unitEconomicsCore");
+    const Bu = await import("../lib/businessSync");
+    const base = { spend: 60000, customers: 20, avgCheck: 5000, marginPct: 40, purchases: 3 };
+    const r = U.computeUnit(base);
+    ok(r.cac === 3000, "юнит: CAC = 60 000 / 20 = 3 000");
+    ok(r.profitPerPurchase === 2000 && r.ltv === 6000, "юнит: прибыль с покупки 2 000, LTV за 3 покупки 6 000");
+    ok(r.ltvCac === 2 && r.verdict === "weak", "юнит: LTV/CAC = 2 → запас небольшой");
+    ok(r.paybackPurchases === 1.5 && r.firstDealProfit === -1000, "юнит: окупается за 1,5 покупки, с первой — минус 1 000");
+    ok(r.maxCac === 6000 && r.comfortCac === 2000, "юнит: предел 6 000, комфортно треть LTV = 2 000");
+    ok(U.computeUnit({ ...base, purchases: 6 }).verdict === "good", "юнит: LTV/CAC 4 → хорошо");
+    ok(U.computeUnit({ ...base, avgCheck: 2000 }).verdict === "loss", "юнит: LTV/CAC меньше 1 → в минус");
+    const one = U.computeUnit({ ...base, purchases: 1 });
+    ok(!one.repeatMode && one.verdict === "loss" && one.firstDealProfit === -1000, "юнит: разовая покупка — вердикт по первой сделке, без LTV-порога");
+    ok(U.computeUnit({ ...base, purchases: 1, marginPct: 80 }).verdict === "good", "юнит: разовая, первая сделка в плюс → окупается");
+    const noMargin = U.computeUnit({ ...base, marginPct: null });
+    ok(noMargin.cac === 3000 && noMargin.ltv === null && noMargin.verdict === null && noMargin.ltvCac === null, "юнит: без маржи считается только CAC");
+    const noData = U.computeUnit({ spend: null, customers: 0, avgCheck: null, marginPct: null, purchases: 0 });
+    ok(noData.cac === null && noData.verdict === null, "юнит: пустые данные — без значений и без деления на ноль");
+    ok(U.computeUnit({ ...base, marginPct: 0 }).paybackPurchases === null, "юнит: нулевая маржа — окупаемость не считается");
+    const sc = U.scenario(base, { cacPct: 50, checkPct: 0, marginPoints: 0 });
+    ok(sc.cac === 4500 && sc.ltvCac === 1.3, "юнит: сценарий CAC +50% → 4 500 и 1,3×: " + sc.cac + "/" + sc.ltvCac);
+    ok(U.scenario(base, { cacPct: 0, checkPct: 0, marginPoints: 0 }).ltvCac === r.ltvCac, "юнит: сценарий без изменений равен базе");
+    ok(U.scenario(base, { cacPct: 0, checkPct: 0, marginPoints: 90 }).ltv === 15000, "юнит: маржа в сценарии не выше 100%");
+
+    const now3 = new Date("2026-10-14T12:00:00+03:00");
+    const snaps = [
+      { id: "s1", createdAt: "2026-07-01T09:00:00Z", label: "Июль", visitors: 0, leads: 0, sales: 5, repeat: 0, adSpend: 99999, avgReceipt: 1000 },
+      { id: "s2", createdAt: "2026-09-01T09:00:00Z", label: "Сентябрь 2026", visitors: 500, leads: 50, sales: 20, repeat: 10, adSpend: 40000, avgReceipt: 2500 },
+      { id: "s3", createdAt: "2026-10-05T09:00:00Z", label: "Октябрь 2026", visitors: 500, leads: 50, sales: 10, repeat: 5, adSpend: 20000, avgReceipt: 3000 },
+    ] as never;
+    const clients = [
+      { id: "1", status: "won", amount: 10000, closedAt: "2026-10-01T09:00:00Z", updatedAt: "2026-10-01T09:00:00Z" },
+      { id: "2", status: "won", amount: 20000, closedAt: "2026-09-10T09:00:00Z", updatedAt: "2026-09-10T09:00:00Z" },
+      { id: "3", status: "won", amount: 5000, closedAt: "2026-05-01T09:00:00Z", updatedAt: "2026-05-01T09:00:00Z" },
+      { id: "4", status: "in_work", amount: 7000, updatedAt: "2026-10-10T09:00:00Z" },
+      { id: "5", status: "won", closedAt: "2026-10-02T09:00:00Z", updatedAt: "2026-10-02T09:00:00Z" },
+    ] as never;
+    const a = U.pickAutoInputs(snaps, clients, now3);
+    ok(a.crm?.spend === 60000 && a.crm?.customers === 3, "авто: CRM за 90 дней — расходы только свежих периодов (60 000), 3 оплаты");
+    ok(a.crm?.avgCheck === 15000, "авто: средний чек считается по оплатам с суммой (без записи без суммы)");
+    ok(a.funnel?.label === "Октябрь 2026" && a.funnel?.spend === 20000 && a.funnel?.customers === 10 && a.funnel?.avgCheck === 3000, "авто: воронка — последний период");
+    ok(a.funnel?.purchasesHint === 1.5, "авто: подсказка покупок на клиента = 1 + 5/10 = 1,5");
+    ok(a.crm?.funnelSales === 30 && U.crmLooksIncomplete(a.crm), "авто: в воронке 30 продаж за 90 дней при 3 оплатах в CRM → предупреждение о неполной CRM");
+    ok(!U.crmLooksIncomplete(a.funnel) && !U.crmLooksIncomplete(null), "авто: для режима воронки и без данных предупреждения нет");
+    const none = U.pickAutoInputs([], [], now3);
+    ok(none.crm === null && none.funnel === null, "авто: нет данных — нечего подставлять");
+    ok(U.pickAutoInputs(snaps, [], now3).crm === null, "авто: без оплат в CRM режим CRM не предлагается");
+
+    ok(JSON.stringify(Bu.sanitizeUnit({ marginPct: 40, purchases: 2.5 })) === '{"marginPct":40,"purchases":2.5}', "юнит-сервер: нормальные значения сохраняются");
+    const bad = Bu.sanitizeUnit({ marginPct: 500, purchases: 0, x: 1 });
+    ok(bad.marginPct === 100 && bad.purchases === 1 && Object.keys(bad).length === 2, "юнит-сервер: значения зажаты в границы, лишние поля отброшены");
+    ok(Object.keys(Bu.sanitizeUnit("мусор")).length === 0 && Object.keys(Bu.sanitizeUnit([1])).length === 0, "юнит-сервер: не объект — пусто");
+    ok(Bu.sanitizePatch({ unit: { marginPct: 30 } }).unit?.marginPct === 30 && Bu.sanitizePatch({ name: "x" }).unit === undefined, "юнит-сервер: отсутствующее поле не затирается");
   }
   console.log(fails === 0 ? "\nВСЕ ТЕСТЫ ПРОШЛИ" : `\nПРОВАЛЕНО: ${fails}`);
   process.exit(fails ? 1 : 0);

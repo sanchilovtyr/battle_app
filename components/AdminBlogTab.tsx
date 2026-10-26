@@ -1,5 +1,6 @@
 "use client";
 
+import AdminPublishKeyCard from "@/components/AdminPublishKeyCard";
 import { useEffect, useMemo, useState } from "react";
 import Markdown from "@/components/Markdown";
 import { slugify } from "@/lib/slug";
@@ -297,6 +298,8 @@ export default function AdminBlogTab({
   return (
     <div>
       {notice && <p className="mb-4 rounded-xl bg-brand-soft p-3 text-sm text-ink-900">{notice}</p>}
+
+      {!draft && <AdminPublishKeyCard />}
 
       {!draft && (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">

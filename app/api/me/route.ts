@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/db";
+import { unlinkUserFromAnalytics } from "@/lib/analyticsStore";
+import { touchActivity } from "@/lib/inactivity";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -11,6 +13,7 @@ export async function GET() {
     include: { subscription: true },
   });
   if (!full) return NextResponse.json({ error: "Пользователь не найден" }, { status: 404 });
+  await touchActivity(full.id);
 
   return NextResponse.json({
     email: full.email,
@@ -48,6 +51,7 @@ export async function DELETE() {
   if (!user) return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
 
   // Subscription / Business / SupportMessage / Payment удалятся каскадно (onDelete: Cascade в schema.prisma)
+  await unlinkUserFromAnalytics(user.id);
   await prisma.user.delete({ where: { id: user.id } });
 
   return NextResponse.json({ ok: true });

@@ -95,7 +95,7 @@ export default async function BlogArticle({ params }: { params: { slug: string }
             worksFor: { "@type": "Organization", name: "Ключевое слово", url: SITE_URL },
           }
         : { "@type": "Organization", name: "Ключевое слово" },
-      publisher: { "@type": "Organization", name: "Ключевое слово", url: SITE_URL, logo: { "@type": "ImageObject", url: `${SITE_URL}/logo-mark.png` } },
+      publisher: { "@type": "Organization", name: "Ключевое слово", url: SITE_URL, logo: { "@type": "ImageObject", url: `${SITE_URL}/app-icon-512.png` } },
     },
     {
       "@context": "https://schema.org",

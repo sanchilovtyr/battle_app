@@ -1,5 +1,5 @@
 import SiteHeader from "@/components/SiteHeader";
-import { PRIVACY_SECTIONS } from "@/lib/privacy";
+import { PRIVACY_SECTIONS, PRIVACY_UPDATED } from "@/lib/privacy";
 import { EXECUTOR, OFFER_PUBLISHED } from "@/lib/offer";
 
 export default function PrivacyPage() {
@@ -10,7 +10,7 @@ export default function PrivacyPage() {
         <h1 className="mb-2 font-display text-2xl text-ink-900 md:text-3xl">
           Политика обработки персональных данных
         </h1>
-        <p className="mb-10 text-sm text-muted">Действующая редакция опубликована {OFFER_PUBLISHED}</p>
+        <p className="mb-10 text-sm text-muted">Действующая редакция опубликована {OFFER_PUBLISHED}, изменения внесены {PRIVACY_UPDATED}</p>
 
         <div className="space-y-8">
           {PRIVACY_SECTIONS.map((section) => (

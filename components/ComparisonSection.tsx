@@ -2,19 +2,29 @@
 
 import { useState } from "react";
 
-const ROWS: { label: string; us: string; agency: string; freelancer: string; nothing: string }[] = [
+const ROWS: { label: string; us: string; agency: string; freelancer: string; diy: string; nothing: string }[] = [
   {
     label: "Цена в месяц",
-    us: "от 1 990 ₽",
-    agency: "от 60 000 ₽",
-    freelancer: "от 80 000 ₽ + время на поиск",
+    us: "от 1\u00A0990\u00A0₽; все инструменты в «Премиуме» — 6\u00A0990\u00A0₽",
+    agency: "от 20\u00A0000\u00A0₽ за одну услугу, от 80\u00A0000\u00A0₽ за стратегическое сопровождение",
+    freelancer: "зарплата от 30\u00A0000\u00A0₽ и выше + налоги и время на поиск",
+    diy: "Две популярные CRM-системы в России на платных тарифах: от 599\u00A0₽ за пользователя или от 2\u00A0490\u00A0₽ за команду до 5 человек (осень 2026) + аналитика, дашборды и время на настройку",
     nothing: "0 ₽",
+  },
+  {
+    label: "Что входит",
+    us: "План, чек-листы, дашборд, ROMI, CRM и юнит-экономика в одной подписке",
+    agency: "Работа по договору; отчёты и аналитика — на усмотрение подрядчика",
+    freelancer: "Зависит от человека; сервисы оплачиваются отдельно",
+    diy: "Каждый инструмент — отдельная подписка и отдельная настройка",
+    nothing: "—",
   },
   {
     label: "Когда будет готов план",
     us: "Сразу, за 3 минуты",
     agency: "1–3 недели на брифы и согласования",
     freelancer: "Недели на поиск и адаптацию человека",
+    diy: "Недели на выбор и настройку сервисов",
     nothing: "Никогда",
   },
   {
@@ -22,6 +32,7 @@ const ROWS: { label: string; us: string; agency: string; freelancer: string; not
     us: "По 4 ответам о вашем бизнесе",
     agency: "Зависит от команды и брифа",
     freelancer: "Зависит от опыта конкретного человека",
+    diy: "Шаблоны из интернета без привязки к вашей нише",
     nothing: "—",
   },
   {
@@ -29,6 +40,7 @@ const ROWS: { label: string; us: string; agency: string; freelancer: string; not
     us: "Нет",
     agency: "Нужно согласовывать и контролировать",
     freelancer: "Нужен найм, адаптация, контроль",
+    diy: "Нет, но всё делаете сами",
     nothing: "Нет",
   },
   {
@@ -36,13 +48,15 @@ const ROWS: { label: string; us: string; agency: string; freelancer: string; not
     us: "Нет — план остаётся у вас",
     agency: "Смена менеджера — начинай объяснять заново",
     freelancer: "Уволился — начинай с нуля",
+    diy: "Нет, но данные лежат в разных сервисах",
     nothing: "—",
   },
   {
     label: "Что происходит с продвижением",
-    us: "Чек-лист, аналитика и обновления плана",
+    us: "Чек-лист, аналитика, ROMI, CRM и обновления плана",
     agency: "Отчёты по договору, не всегда факты",
     freelancer: "Зависит от загрузки одного человека",
+    diy: "Цифры из разных систем нужно сводить вручную",
     nothing: "Конкуренты постепенно забирают клиентов",
   },
 ];
@@ -51,6 +65,7 @@ const OPTIONS = [
   { key: "us" as const, name: "Ключевое слово", highlight: true },
   { key: "agency" as const, name: "Маркетинговое агентство" },
   { key: "freelancer" as const, name: "Свой маркетолог / фрилансер" },
+  { key: "diy" as const, name: "Самому, сервисы по отдельности" },
   { key: "nothing" as const, name: "Ничего не делать" },
 ];
 
@@ -72,7 +87,7 @@ export default function ComparisonSection() {
     <div className="mx-auto max-w-5xl">
       {/* Десктоп и планшет — полная таблица */}
       <div className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[720px] border-separate border-spacing-0 text-sm">
+        <table className="w-full min-w-[860px] border-separate border-spacing-0 text-sm">
           <thead>
             <tr>
               <th className="p-3 text-left text-xs font-medium uppercase tracking-wide text-muted"> </th>

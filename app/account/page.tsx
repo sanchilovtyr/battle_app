@@ -348,7 +348,7 @@ export default function AccountPage() {
                   Отказаться от подписки
                 </button>
               )}
-              {isPaid && subscription.status === "cancelled" && (
+              {isPaid && subscription.status === "cancelled" && subscription.hasPaymentMethod && (
                 <button
                   onClick={handleResume}
                   className="rounded-full bg-ink-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-800"
@@ -430,6 +430,22 @@ export default function AccountPage() {
                       className="rounded-full bg-[#e6f7f0] px-3 py-1 text-sm font-semibold text-[#0f7a54] ring-1 ring-[#1baf7a]/50 hover:bg-[#d9f2e8]"
                     >
                       Дашборд
+                    </Link>
+                  )}
+                  {b.plan && effectivePlan.risksAccess && (
+                    <Link
+                      href={`/business/${b.id}/risks`}
+                      className="text-sm font-medium text-violet underline underline-offset-4 hover:text-ink-900"
+                    >
+                      Риски
+                    </Link>
+                  )}
+                  {b.plan && effectivePlan.crmAccess && (
+                    <Link
+                      href={`/business/${b.id}/clients`}
+                      className="text-sm font-medium text-violet underline underline-offset-4 hover:text-ink-900"
+                    >
+                      Клиенты
                     </Link>
                   )}
                   {b.plan && (

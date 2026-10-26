@@ -26,7 +26,8 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
   // Подтверждение прав на сайт в Яндекс Вебмастере (метатег yandex-verification)
   verification: {
-    yandex: "e4ab0ee262e6629c",
+    // Два кода: прежний (другой аккаунт Яндекса) и новый; оставляем оба, чтобы подтверждение не слетело
+    yandex: ["e4ab0ee262e6629c", "f01523e336d05618"],
     // Подтверждение прав на сайт в Google Search Console
     google: "D5oDR7WNv9NNX5R7TBZA7Z2_70D2fNkKeIV2Ei7iMD8",
   },

@@ -157,7 +157,7 @@ const VISITOR_SEL = {
 };
 const SESSION_SEL = {
   id: true, visitorId: true, startedAt: true, pageViews: true, activeSec: true, channel: true, source: true,
-  medium: true, campaign: true, landingPath: true,
+  medium: true, campaign: true, term: true, landingPath: true,
 };
 
 export async function loadReport(range: Range): Promise<Report> {

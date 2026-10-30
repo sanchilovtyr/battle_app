@@ -204,6 +204,44 @@ export default function AnalyticsReport({ query }: { query: string }) {
             </div>
           </Card>
 
+          <Card
+            title="Поисковые фразы"
+            note="Точная фраза известна только там, где её передают: рекламная метка utm_term (например, ключевая фраза Директа) и редкие переходы, в которых поисковик оставил текст запроса. Яндекс и Google обычно скрывают запрос, поэтому такие визиты показаны отдельной строкой «фраза скрыта». Полный список запросов из поиска (показы, клики, место) — на странице «Позиции в поиске»."
+          >
+            <p className="mb-3 text-xs text-muted">
+              Визитов с известной фразой: {num(data.phraseStats.withPhrase)} · из поиска без фразы: {num(data.phraseStats.searchHidden)} из {num(data.phraseStats.searchTotal)} поисковых.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px]">
+                <thead>
+                  <tr>
+                    <th className={th}>Фраза</th>
+                    <th className={th}>Источник</th>
+                    <th className={th}>Посетители</th>
+                    <th className={th}>Визиты</th>
+                    <th className={th}>Отказы</th>
+                    <th className={th}>Время</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.phrases.map((p, i) => (
+                    <tr key={i} className="border-t border-line">
+                      <td className={td}>{p.phrase ? p.phrase : <span className="italic text-muted">фраза скрыта поисковой системой</span>}</td>
+                      <td className={td}>{p.source} <span className="text-muted">· {p.channelLabel}</span></td>
+                      <td className={td}>{num(p.visitors)}</td>
+                      <td className={td}>{num(p.sessions)}</td>
+                      <td className={td}><Bounce pct={p.bouncePct} measured={p.measured} /></td>
+                      <td className={td}>{fmtSec(p.avgSec)}</td>
+                    </tr>
+                  ))}
+                  {data.phrases.length === 0 && (
+                    <tr><td className={td} colSpan={6}>Пока нет данных.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
           <Card title="Конверсия по источникам" note="Считаются люди, которые впервые пришли за выбранный период: сколько из них зарегистрировалось и сколько оформило тариф (в любой момент после прихода). Источник — первый визит.">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px]">
@@ -267,6 +305,7 @@ export default function AnalyticsReport({ query }: { query: string }) {
                             {(c.first.medium || c.first.campaign) && (
                               <div className="text-xs text-muted">{[c.first.medium, c.first.campaign].filter(Boolean).join(" / ")}</div>
                             )}
+                            {c.first.term && <div className="text-xs text-muted">фраза: {c.first.term}</div>}
                             <div className="text-xs text-muted">вход: {c.first.landingPath}</div>
                           </td>
                           <td className={td}>

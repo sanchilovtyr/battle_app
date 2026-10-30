@@ -4,12 +4,14 @@ import { useState } from "react";
 import AnalyticsReport from "@/components/analytics/AnalyticsReport";
 import AnalyticsReplays from "@/components/analytics/AnalyticsReplays";
 import AnalyticsHeatmap from "@/components/analytics/AnalyticsHeatmap";
+import AnalyticsPositions from "@/components/analytics/AnalyticsPositions";
 import RangePicker, { DEFAULT_RANGE, RangeValue, rangeQuery } from "@/components/analytics/RangePicker";
 
-type View = "report" | "replays" | "clicks" | "scroll";
+type View = "report" | "positions" | "replays" | "clicks" | "scroll";
 
 const VIEWS: { id: View; label: string }[] = [
   { id: "report", label: "Отчёт" },
+  { id: "positions", label: "Позиции в поиске" },
   { id: "replays", label: "Вебвизор" },
   { id: "clicks", label: "Карта кликов" },
   { id: "scroll", label: "Карта скролла" },
@@ -37,6 +39,7 @@ export default function AdminAnalyticsTab() {
       {(view === "report" || view === "replays") && <RangePicker value={range} onChange={setRange} />}
 
       {view === "report" && <AnalyticsReport query={query} />}
+      {view === "positions" && <AnalyticsPositions />}
       {view === "replays" && <AnalyticsReplays query={query} />}
       {view === "clicks" && <AnalyticsHeatmap mode="clicks" />}
       {view === "scroll" && <AnalyticsHeatmap mode="scroll" />}

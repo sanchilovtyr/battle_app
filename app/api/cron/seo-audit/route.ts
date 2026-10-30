@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { collectPositions, prunePositions } from "@/lib/positions";
 import { timingSafeEqual } from "crypto";
 import { runSeoAudit, sendSeoDigest } from "@/lib/seoRun";
 import { pingPendingPosts } from "@/lib/indexnow";
@@ -54,8 +55,16 @@ export async function POST(req: Request) {
     } catch (e) {
       console.error("Мониторинг рисков: ошибка запуска", e);
     }
+    // Позиции сайта по запросам из Вебмастера и Search Console (снимок за сегодня) и чистка старых
+    let positions = null;
+    try {
+      positions = await collectPositions();
+      await prunePositions();
+    } catch (e) {
+      console.error("Позиции: ошибка ежедневной загрузки", e);
+    }
     const analyticsPruned = await pruneAnalytics();
-    return NextResponse.json({ ok: true, result, digest, indexNow, inactivity, monitor, analyticsPruned });
+    return NextResponse.json({ ok: true, result, digest, indexNow, inactivity, monitor, positions, analyticsPruned });
   } catch (e) {
     console.error("SEO-монитор: ошибка проверки по расписанию", e);
     return NextResponse.json({ error: "Ошибка проверки" }, { status: 500 });

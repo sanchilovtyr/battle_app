@@ -83,6 +83,29 @@ function clean(v: unknown, max = 80): string {
   return v.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, max);
 }
 
+/**
+ * Текст поискового запроса из адреса, с которого пришёл человек. Яндекс, Google и другие поисковики почти всегда
+ * передают сайту только свой домен (запрос скрыт), поэтому результат бывает пустым — это нормально.
+ */
+export function searchQueryFromReferrer(referrer: string | null | undefined): string {
+  if (!referrer || typeof referrer !== "string") return "";
+  let u: URL;
+  try {
+    u = new URL(referrer);
+  } catch {
+    return "";
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return "";
+  const host = u.hostname.toLowerCase().replace(/^www\./, "");
+  if (!SEARCH.some(([re]) => re.test(host))) return "";
+  const param = /(^|\.)yandex\.|^ya\.ru$/.test(host) ? ["text"] : /rambler\.ru$/.test(host) ? ["query", "q"] : ["q", "query", "text"];
+  for (const k of param) {
+    const v = clean((u.searchParams.get(k) ?? "").replace(/\s+/g, " "), 100);
+    if (v && !/^https?:\/\//i.test(v)) return v;
+  }
+  return "";
+}
+
 export function hostFromUrl(url: string | null | undefined): string {
   if (!url || typeof url !== "string") return "";
   try {
@@ -133,7 +156,7 @@ export function classifyTouch(input: TouchInput): Touch {
     const ai = matchName(AI, external);
     if (ai) return { ...base, channel: "ai", source: ai };
     const se = matchName(SEARCH, external);
-    if (se) return { ...base, channel: "search", source: se };
+    if (se) return { ...base, term: base.term || searchQueryFromReferrer(input.referrer), channel: "search", source: se };
     const so = matchName(SOCIAL, external);
     if (so) return { ...base, channel: "social", source: so };
     return { ...base, channel: "referral", source: external };
@@ -236,6 +259,8 @@ export interface SessionRow {
   source: string;
   medium: string;
   campaign: string;
+  /** Поисковая фраза: utm_term или запрос из адреса перехода; у органики почти всегда пусто */
+  term?: string;
   landingPath: string;
 }
 export interface VisitorRow {
@@ -339,6 +364,15 @@ export interface SourceRow extends BounceStat {
   sessions: number;
   pagesPerSession: number;
 }
+export interface PhraseRow extends BounceStat {
+  /** Фраза; пустая — поисковик её скрыл (строка «фраза скрыта», по одной на поисковую систему) */
+  phrase: string;
+  channel: string;
+  channelLabel: string;
+  source: string;
+  sessions: number;
+  visitors: number;
+}
 export interface CohortRow {
   channel: string;
   channelLabel: string;
@@ -358,7 +392,7 @@ export interface ConversionRow {
   known: boolean;
   firstTouchAt: string | null;
   daysToPay: number | null;
-  first: { channel: string; channelLabel: string; source: string; medium: string; campaign: string; landingPath: string } | null;
+  first: { channel: string; channelLabel: string; source: string; medium: string; campaign: string; term: string; landingPath: string } | null;
   last: { channel: string; channelLabel: string; source: string; medium: string; campaign: string; at: string } | null;
 }
 
@@ -380,6 +414,9 @@ export interface Report {
   daily: { day: string; visitors: number; sessions: number }[];
   channels: ({ channel: string; label: string; visitors: number; sessions: number; share: number } & BounceStat)[];
   sources: SourceRow[];
+  /** Поисковые фразы, с которых пришли визиты (известные и «скрытые поисковиком») */
+  phrases: PhraseRow[];
+  phraseStats: { withPhrase: number; searchHidden: number; searchTotal: number };
   landing: { path: string; sessions: number }[];
   cohorts: CohortRow[];
   conversions: ConversionRow[];
@@ -470,6 +507,30 @@ export function buildReport(input: ReportInput): Report {
       ...bounceStat(e.list),
     }))
     .sort((a, b) => b.sessions - a.sessions);
+  // Поисковые фразы: точные (метка utm_term, запрос из адреса) и «скрытые» — визиты из поиска без фразы
+  const phMap = new Map<string, { row: PhraseRow; v: Set<string>; list: SessionRow[] }>();
+  let withPhrase = 0, searchHidden = 0, searchTotal = 0;
+  for (const s of input.sessions) {
+    const t = (s.term ?? "").replace(/\s+/g, " ").trim();
+    const isSearch = s.channel === "search";
+    if (isSearch) searchTotal++;
+    if (!t && !isSearch) continue;
+    if (t) withPhrase++;
+    else searchHidden++;
+    const k = [t.toLowerCase(), s.source, s.channel].join("\u0001");
+    const e = phMap.get(k) ?? {
+      row: { phrase: t, channel: s.channel, channelLabel: label(s.channel), source: s.source, sessions: 0, visitors: 0, measured: 0, bounced: 0, bouncePct: null, avgSec: null },
+      v: new Set<string>(),
+      list: [],
+    };
+    e.v.add(s.visitorId);
+    e.list.push(s);
+    phMap.set(k, e);
+  }
+  const phrases: PhraseRow[] = Array.from(phMap.values())
+    .map((e) => ({ ...e.row, sessions: e.list.length, visitors: e.v.size, ...bounceStat(e.list) }))
+    .sort((a, b) => b.sessions - a.sessions)
+    .slice(0, 100);
   const totalSessions = input.sessions.length;
   const channels = Array.from(chMap, ([channel, c]) => ({
     channel,
@@ -547,7 +608,7 @@ export function buildReport(input: ReportInput): Report {
         firstTouchAt: v ? v.firstSeenAt.toISOString() : null,
         daysToPay: v ? Math.max(0, Math.floor((p.createdAt.getTime() - v.firstSeenAt.getTime()) / 86400000)) : null,
         first: v
-          ? { channel: v.channel, channelLabel: label(v.channel), source: v.source, medium: v.medium, campaign: v.campaign, landingPath: v.landingPath }
+          ? { channel: v.channel, channelLabel: label(v.channel), source: v.source, medium: v.medium, campaign: v.campaign, term: v.term ?? "", landingPath: v.landingPath }
           : null,
         last,
       };
@@ -576,6 +637,8 @@ export function buildReport(input: ReportInput): Report {
     daily,
     channels,
     sources,
+    phrases,
+    phraseStats: { withPhrase, searchHidden, searchTotal },
     landing,
     cohorts,
     conversions: conversions.slice(0, 200),

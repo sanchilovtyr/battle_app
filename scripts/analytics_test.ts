@@ -1,5 +1,5 @@
 import assert from "node:assert";
-import { isBounce, isMeasured, buildReport, classifyTouch, deviceFromWidth, isBehaviorPath, sanitizeClicks, scrollReach, validSelector, isBotUserAgent, mskDay, normalizePath, periodStart, resolveRange, validId } from "../lib/analyticsCore";
+import { searchQueryFromReferrer, isBounce, isMeasured, buildReport, classifyTouch, deviceFromWidth, isBehaviorPath, sanitizeClicks, scrollReach, validSelector, isBotUserAgent, mskDay, normalizePath, periodStart, resolveRange, validId } from "../lib/analyticsCore";
 
 let n = 0;
 const ok = (name: string, fn: () => void) => { fn(); n++; };
@@ -225,6 +225,45 @@ ok("отчёт: отказы по каналам и кампаниям", () => {
   assert.equal(g.measured, 0); assert.equal(g.bouncePct, null); assert.equal(g.avgSec, null);
   assert.equal(r.totals.measured, 5); assert.equal(r.totals.bounced, 2); assert.equal(r.totals.bouncePct, 40);
   assert.equal(r.channels.find((c) => c.channel === "paid")!.bouncePct, 40);
+});
+
+// ───────────── поисковые фразы ─────────────
+ok("фраза из адреса перехода: только у поисковиков, скрытые — пусто", () => {
+  assert.equal(searchQueryFromReferrer("https://yandex.ru/search/?text=%D0%BF%D0%BB%D0%B0%D0%BD+%D0%BF%D1%80%D0%BE%D0%B4%D0%B2%D0%B8%D0%B6%D0%B5%D0%BD%D0%B8%D1%8F&lr=213"), "план продвижения");
+  assert.equal(searchQueryFromReferrer("https://www.google.com/search?q=marketing+plan"), "marketing plan");
+  assert.equal(searchQueryFromReferrer("https://yandex.ru/"), "");
+  assert.equal(searchQueryFromReferrer("https://www.google.com/"), "");
+  assert.equal(searchQueryFromReferrer("https://example.com/?q=секрет"), "");
+  assert.equal(searchQueryFromReferrer("https://yandex.ru/?text=http://evil.example"), "");
+  assert.equal(searchQueryFromReferrer("javascript:alert(1)"), "");
+  assert.equal(searchQueryFromReferrer(null), "");
+});
+ok("классификация: фраза из адреса идёт в term, utm_term важнее", () => {
+  const a = classifyTouch({ referrer: "https://yandex.ru/search/?text=abc", ownHosts: own });
+  assert.equal(a.channel, "search"); assert.equal(a.term, "abc");
+  const b = classifyTouch({ referrer: "https://yandex.ru/search/?text=abc", ownHosts: own, utm_source: "yandex", utm_medium: "organic", utm_term: "из метки" });
+  assert.equal(b.term, "из метки");
+  const c = classifyTouch({ referrer: "https://yandex.ru/", ownHosts: own });
+  assert.equal(c.term, "");
+});
+ok("отчёт: фразы, скрытые поисковиком и отказы по ним", () => {
+  const day = periodStart(new Date(), 1);
+  const mk = (i: number, channel: string, source: string, term: string, pageViews: number, activeSec: number) => ({
+    id: "p" + i, visitorId: "pv" + i, startedAt: new Date(day.getTime() + 3600_000), pageViews, activeSec,
+    channel, source, medium: "", campaign: "", term, landingPath: "/",
+  });
+  const sessions = [
+    mk(1, "paid", "yandex", "план продвижения", 1, 3), mk(2, "paid", "yandex", "План  продвижения", 2, 40),
+    mk(3, "search", "Яндекс", "", 1, 2), mk(4, "search", "Яндекс", "", 1, 30), mk(5, "search", "Google", "", 1, 1),
+    mk(6, "paid", "google", "", 1, 5), mk(7, "direct", "(прямой заход)", "", 1, 5),
+  ];
+  const r = buildReport({ from: day, to: new Date(day.getTime() + 86400000), sessions, newVisitors: [], linkedVisitors: [], linkedSessions: [], firstPayments: [], users: [] });
+  assert.equal(r.phraseStats.withPhrase, 2); assert.equal(r.phraseStats.searchHidden, 3); assert.equal(r.phraseStats.searchTotal, 3);
+  const known = r.phrases.find((p) => p.phrase === "план продвижения")!;
+  assert.equal(known.sessions, 2); assert.equal(known.bouncePct, 50);
+  const hiddenY = r.phrases.find((p) => !p.phrase && p.source === "Яндекс")!;
+  assert.equal(hiddenY.sessions, 2); assert.equal(hiddenY.bounced, 1);
+  assert.equal(r.phrases.length, 3); // платный без фразы и прямой заход в таблицу не попадают
 });
 
 console.log(`ВСЕ ТЕСТЫ ПРОШЛИ (${n})`);

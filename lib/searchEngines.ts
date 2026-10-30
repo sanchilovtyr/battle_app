@@ -313,3 +313,87 @@ export async function fetchGoogleReport(
     sitemaps,
   };
 }
+
+// ───────────────────────── Список запросов для отслеживания позиций ─────────────────────────
+
+export interface QueryStat {
+  query: string;
+  shows: number;
+  clicks: number;
+  /** Средняя позиция показа сайта по запросу за период (не «живая» выдача) */
+  position: number | null;
+}
+export interface QueryList {
+  queries: QueryStat[];
+  dateFrom: string | null;
+  dateTo: string | null;
+}
+
+/** До 500 запросов, по которым сайт показывался в Яндексе (данные Вебмастера, обычно за последнюю неделю) */
+export async function fetchYandexQueryList(
+  token: string,
+  siteUrl: string,
+  explicitHost?: string,
+  fetchFn: FetchFn = fetch,
+  limit = 500
+): Promise<QueryList> {
+  const headers = { Authorization: `OAuth ${token}` };
+  const what = "Яндекс Вебмастер";
+  const user = await getJson(fetchFn, `${YW}/user`, { headers }, what);
+  const uid = user?.user_id;
+  if (!uid) throw new SearchEngineError(`${what}: не удалось определить пользователя по токену.`);
+  const hostsData = await getJson(fetchFn, `${YW}/user/${uid}/hosts`, { headers }, what);
+  const hosts: YandexHostInfo[] = Array.isArray(hostsData?.hosts) ? hostsData.hosts : [];
+  const candidates = rankYandexHosts(hosts, siteUrl, explicitHost);
+  if (candidates.length === 0) {
+    throw new SearchEngineError(`${what}: сайт ${siteUrl} не найден среди ваших сайтов. Добавьте и подтвердите его в Вебмастере.`);
+  }
+  const qs = `order_by=TOTAL_SHOWS&query_indicator=TOTAL_SHOWS&query_indicator=TOTAL_CLICKS&query_indicator=AVG_SHOW_POSITION&limit=${limit}`;
+  let lastErr: unknown = null;
+  for (const host of candidates) {
+    try {
+      const popular = await getJson(fetchFn, `${YW}/user/${uid}/hosts/${host.host_id}/search-queries/popular?${qs}`, { headers }, what);
+      return { queries: parseYandexQueries(popular), dateFrom: popular?.date_from ?? null, dateTo: popular?.date_to ?? null };
+    } catch (e) {
+      lastErr = e;
+      if (e instanceof SearchEngineError && (e.code === "HOST_NOT_LOADED" || e.code === "HOST_NOT_VERIFIED")) continue;
+      throw e;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new SearchEngineError(`${what}: не удалось получить запросы.`);
+}
+
+/** До 1000 запросов, по которым сайт показывался в Google (Search Console, последние 7 дней, данные запаздывают на 2–3 дня) */
+export async function fetchGoogleQueryList(
+  key: GoogleKey,
+  siteUrl: string,
+  fetchFn: FetchFn = fetch,
+  now = new Date(),
+  rowLimit = 1000
+): Promise<QueryList> {
+  const what = "Google Search Console";
+  const form = new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: buildGoogleJwt(key) });
+  const tok = await getJson(
+    fetchFn,
+    "https://oauth2.googleapis.com/token",
+    { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form.toString() },
+    what
+  );
+  if (!tok?.access_token) throw new SearchEngineError(`${what}: не удалось получить токен по ключу сервисного аккаунта.`);
+  const headers = { Authorization: `Bearer ${tok.access_token}`, "Content-Type": "application/json" };
+  const end = new Date(now.getTime() - 3 * 86400000);
+  const start = new Date(end.getTime() - 6 * 86400000);
+  const data = await getJson(
+    fetchFn,
+    `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
+    { method: "POST", headers, body: JSON.stringify({ startDate: iso(start), endDate: iso(end), dimensions: ["query"], rowLimit }) },
+    what
+  );
+  const queries: QueryStat[] = parseGoogleRows(data).map((r) => ({
+    query: r.key,
+    shows: r.impressions,
+    clicks: r.clicks,
+    position: r.position > 0 ? r.position : null,
+  }));
+  return { queries, dateFrom: iso(start), dateTo: iso(end) };
+}

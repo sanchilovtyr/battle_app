@@ -530,3 +530,29 @@ model AnalyticsSetting {
   key   String @id
   value String
 }
+
+/// Запросы, по которым продвигается сайт: их позиции показываются в админке («Аналитика → Позиции в поиске»)
+model SeoTargetQuery {
+  id        String   @id @default(cuid())
+  /// Нормализованный текст запроса: строчные, ё = е
+  query     String   @unique
+  note      String   @default("")
+  createdAt DateTime @default(now())
+}
+
+/// Ежедневные снимки: средняя позиция сайта, показы и клики по запросу в Яндексе и Google (из Вебмастера и Search Console)
+model SeoPosition {
+  id       String @id @default(cuid())
+  /// yandex | google
+  engine   String
+  /// День загрузки данных (по Москве), YYYY-MM-DD
+  day      String
+  query    String
+  position Float
+  shows    Int    @default(0)
+  clicks   Int    @default(0)
+
+  @@unique([engine, day, query])
+  @@index([engine, day])
+  @@index([query, engine, day])
+}

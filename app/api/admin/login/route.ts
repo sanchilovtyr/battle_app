@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { createAdminToken, ADMIN_COOKIE_NAME } from "@/lib/adminAuth";
+import { hasStrongSecret } from "@/lib/secrets";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 
 function safeCompare(a: string, b: string): boolean {
@@ -19,13 +20,18 @@ export async function POST(req: Request) {
     );
   }
 
+  // Общий лимит не по IP: заголовок X-Forwarded-For можно подделать и обойти лимит по адресу
+  if (!checkRateLimit("admin-login:global", 60, 15 * 60 * 1000)) {
+    return NextResponse.json({ error: "Слишком много попыток входа. Попробуйте позже." }, { status: 429 });
+  }
+
   const body = await req.json().catch(() => ({}));
   const password = String(body?.password ?? "");
   const expected = process.env.ADMIN_PASSWORD;
 
-  if (!expected) {
+  if (!expected || !hasStrongSecret()) {
     return NextResponse.json(
-      { error: "ADMIN_PASSWORD не задан в переменных окружения на сервере" },
+      { error: "ADMIN_PASSWORD или NEXTAUTH_SECRET (от 16 символов) не заданы в переменных окружения на сервере" },
       { status: 500 }
     );
   }

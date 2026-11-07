@@ -34,8 +34,8 @@ function ResetPasswordForm() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length < 6) {
-      setError("Пароль должен быть не короче 6 символов");
+    if (password.length < 8) {
+      setError("Пароль должен быть не короче 8 символов");
       return;
     }
     if (password !== confirm) {
@@ -92,7 +92,7 @@ function ResetPasswordForm() {
   return (
     <>
       <h1 className="font-display text-2xl md:text-3xl text-ink-900 mb-1.5">Новый пароль</h1>
-      <p className="text-muted mb-6">Придумайте пароль не короче 6 символов.</p>
+      <p className="text-muted mb-6">Придумайте пароль не короче 8 символов.</p>
       <form onSubmit={submit} className="grid gap-3">
         <input
           type="password"

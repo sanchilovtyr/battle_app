@@ -40,6 +40,14 @@ export function checkRateLimit(key: string, maxAttempts: number, windowMs: numbe
 
 export function getClientIp(req: Request): string {
   const forwarded = req.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim();
+  if (forwarded) {
+    const parts = forwarded.split(",").map((x) => x.trim()).filter(Boolean);
+    // TRUSTED_PROXY_HOPS = сколько прокси стоит перед приложением и дописывает адрес в конец
+    // X-Forwarded-For. Тогда берём адрес, добавленный ближайшим доверенным прокси, а не
+    // первое значение, которое клиент может подделать. Не задано — прежнее поведение.
+    const hops = Number(process.env.TRUSTED_PROXY_HOPS || 0);
+    if (hops > 0 && parts.length > 0) return parts[Math.max(0, parts.length - hops)];
+    if (parts[0]) return parts[0];
+  }
   return req.headers.get("x-real-ip") || "unknown";
 }

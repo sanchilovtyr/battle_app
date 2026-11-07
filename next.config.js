@@ -11,6 +11,18 @@ const nextConfig = {
   async rewrites() {
     return [{ source: "/:key([A-Za-z0-9-]{8,128}).txt", destination: "/api/indexnow-key/:key" }];
   },
+  // Адрес с www — на основной без www (301): иначе поисковики считают их двумя разными сайтами.
+  // Нужно, чтобы www.m-navi.ru был привязан к приложению в Timeweb (DNS-запись и SSL)
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.m-navi.ru" }],
+        destination: "https://m-navi.ru/:path*",
+        statusCode: 301,
+      },
+    ];
+  },
   async headers() {
     return [
       {
@@ -24,6 +36,7 @@ const nextConfig = {
           // SAMEORIGIN: админка показывает страницы сайта в рамке для карт кликов и скролла
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
         ],

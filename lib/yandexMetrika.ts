@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { prisma } from "./db";
 import { decryptSecret } from "./secretBox";
+import { requireSecret } from "./secrets";
 
 // Интеграция с Яндекс Метрикой пользователя (не нашей собственной). Каждый
 // клиент подключает свой аккаунт Яндекса через OAuth и разрешает нам читать
@@ -15,7 +16,7 @@ const REPORT_API = "https://api-metrika.yandex.net/stat/v1/data";
 const STATE_TTL_MS = 10 * 60 * 1000; // 10 минут на прохождение OAuth-флоу
 
 function getSigningSecret(): string {
-  return process.env.NEXTAUTH_SECRET || "";
+  return requireSecret();
 }
 
 export interface OAuthState {

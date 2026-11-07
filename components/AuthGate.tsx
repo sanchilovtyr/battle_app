@@ -54,8 +54,8 @@ export default function AuthGate({
       setError("Введите корректный email");
       return;
     }
-    if (password.length < 6) {
-      setError("Пароль должен быть не короче 6 символов");
+    if (password.length < 8) {
+      setError("Пароль должен быть не короче 8 символов");
       return;
     }
     if (mode === "register" && (!agreedOffer || !agreedPd)) {
@@ -166,7 +166,7 @@ export default function AuthGate({
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="Пароль, минимум 6 символов"
+          placeholder="Пароль, минимум 8 символов"
           className="w-full rounded-xl border border-line bg-white p-4 text-ink-900 outline-none transition-colors focus:border-violet"
         />
         {error && <p className="text-sm text-red-600">{error}</p>}

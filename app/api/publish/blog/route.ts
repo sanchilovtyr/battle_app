@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getClientIp } from "@/lib/rateLimit";
 import { prisma } from "@/lib/db";
 import { parseBlogInput, toPrismaData } from "@/lib/blogValidation";
 import { pingPendingPosts } from "@/lib/indexnow";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 const limiter = makeFailLimiter();
 
 async function authorize(req: Request): Promise<NextResponse | null> {
-  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+  const ip = getClientIp(req);
   if (limiter.blocked(ip)) return NextResponse.json({ error: "Слишком много неверных попыток, подождите несколько минут" }, { status: 429 });
   const ok = await verifyPublishKey(bearerFrom(req.headers.get("authorization")));
   if (!ok) {

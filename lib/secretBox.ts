@@ -1,3 +1,4 @@
+import { requireSecret } from "./secrets";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 
 // Простое симметричное шифрование для секретов, которые нужно положить в
@@ -7,7 +8,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypt
 // окружения не нужно.
 
 function getKey(): Buffer {
-  const secret = process.env.NEXTAUTH_SECRET || "";
+  const secret = requireSecret();
   return createHash("sha256").update(secret).digest(); // 32 байта — подходит для aes-256
 }
 

@@ -23,8 +23,8 @@ export async function POST(req: Request) {
   if (!EMAIL_RE.test(email)) {
     return NextResponse.json({ error: "Некорректный email" }, { status: 400 });
   }
-  if (password.length < 6) {
-    return NextResponse.json({ error: "Пароль должен быть не короче 6 символов" }, { status: 400 });
+  if (password.length < 8) {
+    return NextResponse.json({ error: "Пароль должен быть не короче 8 символов" }, { status: 400 });
   }
 
   const existing = await prisma.user.findUnique({ where: { email } });

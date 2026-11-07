@@ -1,15 +1,17 @@
 import { createHmac, timingSafeEqual } from "crypto";
+import { requireSecret, hasStrongSecret, adminPasswordFingerprint } from "./secrets";
 
 export const ADMIN_COOKIE_NAME = "admin_session";
 const SESSION_HOURS = 12;
 
 function getSigningSecret(): string {
-  // Подписываем токен секретом NextAuth — он уже обязателен для работы приложения,
-  // отдельный секрет заводить не нужно
-  return process.env.NEXTAUTH_SECRET || "";
+  // Секрет NextAuth + отпечаток пароля админки: смена пароля гасит все старые сессии.
+  // Пустой/короткий секрет — ошибка, а не «подпись пустым ключом»
+  return requireSecret() + ":" + adminPasswordFingerprint();
 }
 
 export function createAdminToken(): string {
+  if (!process.env.ADMIN_PASSWORD) throw new Error("ADMIN_PASSWORD не задан");
   const expires = Date.now() + SESSION_HOURS * 60 * 60 * 1000;
   const payload = `admin:${expires}`;
   const signature = createHmac("sha256", getSigningSecret()).update(payload).digest("hex");
@@ -18,6 +20,7 @@ export function createAdminToken(): string {
 
 export function verifyAdminToken(token: string | undefined | null): boolean {
   if (!token) return false;
+  if (!hasStrongSecret() || !process.env.ADMIN_PASSWORD) return false;
   const [payload, signature] = token.split(".");
   if (!payload || !signature) return false;
 

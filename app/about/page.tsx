@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import { EXECUTOR } from "@/lib/offer";
-import { SITE_URL } from "@/lib/blog";
+import { OG_DEFAULT_IMAGE, SITE_URL } from "@/lib/blog";
 import { SITE_NAME } from "@/lib/geo";
 
 const TITLE = "О сервисе «Ключевое слово» и о том, кто за ним стоит";
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   alternates: { canonical: "/about" },
-  openGraph: { type: "website", locale: "ru_RU", siteName: SITE_NAME, title: TITLE, description: DESCRIPTION, url: `${SITE_URL}/about` },
+  openGraph: { type: "website", locale: "ru_RU", siteName: SITE_NAME, title: TITLE, description: DESCRIPTION, url: `${SITE_URL}/about`, images: [OG_DEFAULT_IMAGE] },
 };
 
 const STEPS = [

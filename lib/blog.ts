@@ -1,4 +1,12 @@
 export const SITE_URL = "https://m-navi.ru";
+
+/** Картинка для превью ссылки в соцсетях и мессенджерах по умолчанию (1200×630, public/og-default.jpg) */
+export const OG_DEFAULT_IMAGE = {
+  url: `${SITE_URL}/og-default.jpg`,
+  width: 1200,
+  height: 630,
+  alt: "Ключевое слово — персональный план продвижения бизнеса",
+};
 export const BLOG_PAGE_SIZE = 9;
 export const MAX_COVER_BYTES = 900 * 1024;
 

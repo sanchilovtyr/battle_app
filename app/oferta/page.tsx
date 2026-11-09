@@ -1,4 +1,16 @@
+import type { Metadata } from "next";
 import SiteHeader from "@/components/SiteHeader";
+import { OG_DEFAULT_IMAGE, SITE_URL } from "@/lib/blog";
+
+const TITLE = "Публичная оферта сервиса «Ключевое слово»";
+const DESCRIPTION = "Договор публичной оферты: условия использования сервиса «Ключевое слово», тарифы, оплата, порядок возврата и реквизиты исполнителя.";
+
+export const metadata: Metadata = {
+  title: TITLE,
+  description: DESCRIPTION,
+  alternates: { canonical: "/oferta" },
+  openGraph: { type: "website", locale: "ru_RU", siteName: "Ключевое слово", title: TITLE, description: DESCRIPTION, url: `${SITE_URL}/oferta`, images: [OG_DEFAULT_IMAGE] },
+};
 import { OFFER_SECTIONS, EXECUTOR, OFFER_PUBLISHED } from "@/lib/offer";
 
 export default function OfferPage() {

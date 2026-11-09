@@ -6,7 +6,7 @@ import { CASES } from "@/lib/cases";
 import { NICHES, getNiche, nichePath } from "@/lib/niches";
 import { MODULES } from "@/lib/modules";
 import { generatePlan } from "@/lib/ruleEngine";
-import { SITE_URL } from "@/lib/blog";
+import { OG_DEFAULT_IMAGE, SITE_URL } from "@/lib/blog";
 import { SITE_NAME } from "@/lib/geo";
 import type { PlanEntry } from "@/lib/types";
 
@@ -23,7 +23,7 @@ export function generateMetadata({ params }: { params: { niche: string } }): Met
     title: n.metaTitle,
     description: n.metaDescription,
     alternates: { canonical: nichePath(n.slug) },
-    openGraph: { type: "website", locale: "ru_RU", siteName: SITE_NAME, title: n.metaTitle, description: n.metaDescription, url },
+    openGraph: { type: "website", locale: "ru_RU", siteName: SITE_NAME, title: n.metaTitle, description: n.metaDescription, url, images: [OG_DEFAULT_IMAGE] },
   };
 }
 

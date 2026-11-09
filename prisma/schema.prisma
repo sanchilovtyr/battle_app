@@ -223,6 +223,13 @@ model SeoIssue {
 }
 
 /// История запусков SEO-проверки (оценка «здоровья» сайта по времени)
+/// Последние значения метрик SEO-монитора (скорость, ИКС, SSL и т.п.): одна строка на ключ, значение — JSON
+model SeoMetric {
+  key       String   @id
+  json      String
+  updatedAt DateTime @default(now())
+}
+
 model SeoAuditRun {
   id           String   @id @default(cuid())
   ranAt        DateTime @default(now())

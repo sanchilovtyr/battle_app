@@ -1,4 +1,16 @@
+import type { Metadata } from "next";
 import SiteHeader from "@/components/SiteHeader";
+import { OG_DEFAULT_IMAGE, SITE_URL } from "@/lib/blog";
+
+const TITLE = "Политика обработки персональных данных — Ключевое слово";
+const DESCRIPTION = "Как сервис «Ключевое слово» собирает, хранит и защищает персональные данные: цели обработки, cookie и аналитика, сроки хранения, права пользователя.";
+
+export const metadata: Metadata = {
+  title: TITLE,
+  description: DESCRIPTION,
+  alternates: { canonical: "/privacy" },
+  openGraph: { type: "website", locale: "ru_RU", siteName: "Ключевое слово", title: TITLE, description: DESCRIPTION, url: `${SITE_URL}/privacy`, images: [OG_DEFAULT_IMAGE] },
+};
 import { PRIVACY_SECTIONS, PRIVACY_UPDATED } from "@/lib/privacy";
 import { EXECUTOR, OFFER_PUBLISHED } from "@/lib/offer";
 

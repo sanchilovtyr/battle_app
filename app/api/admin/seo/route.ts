@@ -4,6 +4,7 @@ import { verifyAdminToken, ADMIN_COOKIE_NAME } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db";
 import { runSeoAudit } from "@/lib/seoRun";
 import { indexNowStatus } from "@/lib/indexnow";
+import { loadMetrics } from "@/lib/seoMetrics";
 
 export const dynamic = "force-dynamic";
 // Обход страниц может занять до нескольких десятков секунд
@@ -34,7 +35,8 @@ export async function GET() {
       // нужен prisma db push
     }
     const indexNow = await indexNowStatus();
-    return NextResponse.json({ runs, issues, resolved, bots, indexNow });
+    const metrics = await loadMetrics();
+    return NextResponse.json({ runs, issues, resolved, bots, indexNow, metrics });
   } catch (e) {
     console.error("SEO-монитор: не удалось прочитать данные", e);
     return NextResponse.json({ runs: [], issues: [], resolved: [], needsDbPush: true });

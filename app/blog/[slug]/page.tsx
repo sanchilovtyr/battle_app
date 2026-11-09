@@ -5,7 +5,7 @@ import SiteHeader from "@/components/SiteHeader";
 import BlogCardView from "@/components/BlogCard";
 import Markdown from "@/components/Markdown";
 import { prisma } from "@/lib/db";
-import { BlogCard, SITE_URL, coverUrl, formatDate, plainSummary, publishedWhere, readingMinutes } from "@/lib/blog";
+import { BlogCard, OG_DEFAULT_IMAGE, SITE_URL, coverUrl, formatDate, plainSummary, publishedWhere, readingMinutes } from "@/lib/blog";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +52,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
       url,
       publishedTime: post.publishedAt?.toISOString(),
       modifiedTime: post.updatedAt.toISOString(),
-      ...(image ? { images: [{ url: image, width: 1200, height: 630, alt: post.coverAlt || post.title }] } : {}),
+      images: image ? [{ url: image, width: 1200, height: 630, alt: post.coverAlt || post.title }] : [OG_DEFAULT_IMAGE],
     },
     twitter: { card: image ? "summary_large_image" : "summary", title, description, ...(image ? { images: [image] } : {}) },
   };

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Providers from "@/components/Providers";
+import { OG_DEFAULT_IMAGE } from "@/lib/blog";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://m-navi.ru"),
@@ -40,9 +41,11 @@ export const metadata: Metadata = {
     description:
       "Пошаговый план продвижения и привлечения клиентов из интернета для малого и среднего бизнеса в России.",
     url: "https://m-navi.ru",
+    images: [OG_DEFAULT_IMAGE],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
+    images: [OG_DEFAULT_IMAGE.url],
     title: "Ключевое слово — персональный план продвижения бизнеса",
     description:
       "Пошаговый план продвижения и привлечения клиентов из интернета для малого и среднего бизнеса в России.",

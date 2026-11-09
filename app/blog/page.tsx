@@ -3,7 +3,7 @@ import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import BlogCard from "@/components/BlogCard";
 import { prisma } from "@/lib/db";
-import { BLOG_PAGE_SIZE, BlogCard as Card, SITE_URL, publishedWhere } from "@/lib/blog";
+import { BLOG_PAGE_SIZE, BlogCard as Card, OG_DEFAULT_IMAGE, SITE_URL, publishedWhere } from "@/lib/blog";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,7 @@ export async function generateMetadata({ searchParams }: { searchParams: { page?
     title: page > 1 ? `${TITLE} — страница ${page}` : TITLE,
     description: DESCRIPTION,
     alternates: { canonical, types: { "application/rss+xml": `${SITE_URL}/blog/rss.xml` } },
-    openGraph: { type: "website", locale: "ru_RU", siteName: "Ключевое слово", title: TITLE, description: DESCRIPTION, url: `${SITE_URL}${canonical}` },
+    openGraph: { type: "website", locale: "ru_RU", siteName: "Ключевое слово", title: TITLE, description: DESCRIPTION, url: `${SITE_URL}${canonical}`, images: [OG_DEFAULT_IMAGE] },
   };
 }
 

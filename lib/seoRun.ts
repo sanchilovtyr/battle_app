@@ -21,6 +21,18 @@ import {
   auditSitemap,
   computeScore,
 } from "@/lib/seoAudit";
+import {
+  PageDetails,
+  auditBrokenLinks,
+  auditDuplicates,
+  auditPageDeep,
+  auditSiteTech,
+  collectInternalLinks,
+  extractDetails,
+} from "@/lib/seoPageChecks";
+import { auditPsi, fetchPsi, PsiResult } from "@/lib/pageSpeed";
+import { fetchYandexReport } from "@/lib/searchEngines";
+import { saveMetric } from "@/lib/seoMetrics";
 
 const MAX_PAGES = 40;
 const FETCH_TIMEOUT_MS = 10000;
@@ -29,6 +41,12 @@ interface Fetched {
   status: number;
   text: string;
   ms: number;
+  /** время до получения заголовков ответа, мс */
+  ttfb: number;
+  finalUrl: string;
+  contentType: string;
+  xRobotsTag: string;
+  bytes: number;
 }
 
 /** Загружает страницу своего же сайта. null — сеть недоступна (а не «страница вернула ошибку») */
@@ -43,8 +61,18 @@ async function fetchOwn(url: string): Promise<Fetched | null> {
       cache: "no-store",
       headers: { "User-Agent": "KeyWordSEOMonitor/1.0" },
     });
+    const ttfb = Date.now() - started;
     const text = await res.text();
-    return { status: res.status, text, ms: Date.now() - started };
+    return {
+      status: res.status,
+      text,
+      ms: Date.now() - started,
+      ttfb,
+      finalUrl: res.url || url,
+      contentType: res.headers.get("content-type") ?? "",
+      xRobotsTag: res.headers.get("x-robots-tag") ?? "",
+      bytes: Buffer.byteLength(text),
+    };
   } catch {
     return null;
   } finally {
@@ -65,6 +93,53 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (x: T) => Promise<R
   );
   return out;
 }
+
+/** Один запрос без перехода по редиректам: нужен, чтобы проверить сам редирект (www, http) */
+async function fetchManual(url: string): Promise<{ status: number; location: string } | null> {
+  try {
+    const res = await fetch(url, { redirect: "manual", cache: "no-store", signal: AbortSignal.timeout(8000), headers: { "User-Agent": "KeyWordSEOMonitor/1.0" } });
+    return { status: res.status, location: res.headers.get("location") ?? "" };
+  } catch {
+    return null;
+  }
+}
+
+/** Срок действия SSL-сертификата сайта (читаем даже у недействительного — причину возвращаем отдельно) */
+async function fetchSsl(host: string): Promise<{ expiresAt: Date | null; error: string } | null> {
+  try {
+    const tls = await import("tls");
+    return await new Promise((resolve) => {
+      const sock = tls.connect({ host, port: 443, servername: host, rejectUnauthorized: false, timeout: 8000 }, () => {
+        const cert = sock.getPeerCertificate();
+        const expiresAt = cert && cert.valid_to ? new Date(cert.valid_to) : null;
+        const error = sock.authorized ? "" : String(sock.authorizationError || "сертификат не прошёл проверку");
+        sock.end();
+        resolve({ expiresAt: expiresAt && !isNaN(expiresAt.getTime()) ? expiresAt : null, error });
+      });
+      sock.on("error", () => resolve(null));
+      sock.on("timeout", () => { sock.destroy(); resolve(null); });
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** Статус внутренней ссылки: сначала HEAD, при отказе — GET. null — не удалось проверить */
+async function linkStatus(url: string): Promise<number | null> {
+  for (const method of ["HEAD", "GET"]) {
+    try {
+      const res = await fetch(url, { method, redirect: "follow", cache: "no-store", signal: AbortSignal.timeout(7000), headers: { "User-Agent": "KeyWordSEOMonitor/1.0" } });
+      if (method === "HEAD" && (res.status === 405 || res.status === 501)) continue;
+      return res.status;
+    } catch {
+      /* пробуем следующий способ */
+    }
+  }
+  return null;
+}
+
+const withDeadline = <T,>(p: Promise<T>, ms: number): Promise<T | null> =>
+  Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
 
 export interface AuditResult {
   score: number;
@@ -126,9 +201,38 @@ export async function runSeoAudit(trigger: "manual" | "cron"): Promise<AuditResu
     { path: "/", isPost: false, id: "", hasCover: false },
     { path: "/blog", isPost: false, id: "", hasCover: false },
     { path: "/about", isPost: false, id: "", hasCover: false },
+    { path: "/oferta", isPost: false, id: "", hasCover: false },
+    { path: "/privacy", isPost: false, id: "", hasCover: false },
     ...NICHES.map((n) => ({ path: nichePath(n.slug), isPost: false, id: "", hasCover: false })),
-    ...live.slice(0, MAX_PAGES - 3 - NICHES.length).map((p) => ({ path: `/blog/${p.slug}`, isPost: true, id: p.id, hasCover: p.hasCover })),
+    ...live.slice(0, MAX_PAGES - 5 - NICHES.length).map((p) => ({ path: `/blog/${p.slug}`, isPost: true, id: p.id, hasCover: p.hasCover })),
   ];
+
+  // Публичный адрес — для проверок, которые должны смотреть на сайт «снаружи» (SSL, www, http, скорость)
+  const publicUrl = (process.env.NEXTAUTH_URL || SITE_URL).replace(/\/$/, "");
+  const publicHost = (() => { try { return new URL(publicUrl).host; } catch { return ""; } })();
+  const publicOk = !!publicHost && !/^(localhost|127\.|0\.0\.0\.0)/.test(publicHost);
+
+  // Медленные внешние запросы стартуют сразу и идут параллельно с обходом страниц
+  const psiJob: Promise<PsiResult[] | null> = publicOk
+    ? withDeadline(
+        Promise.all((["mobile", "desktop"] as const).map((st) => fetchPsi(`${publicUrl}/`, st, process.env.PAGESPEED_API_KEY, fetch, 38000))),
+        40000
+      )
+    : Promise.resolve(null);
+  const webmasterJob = withDeadline(
+    (async () => {
+      const token = (await getKey("YANDEX_WEBMASTER_TOKEN")).value;
+      if (!token) return null;
+      const host = (await getKey("YANDEX_WEBMASTER_HOST")).value;
+      try {
+        const r = await fetchYandexReport(token, publicUrl, host || undefined);
+        return { at: new Date().toISOString(), sqi: r.sqi, searchablePages: r.searchablePages, excludedPages: r.excludedPages, problems: r.problems.map((p) => ({ code: p.code, severity: p.severity, state: p.state })), error: "" };
+      } catch (e) {
+        return { at: new Date().toISOString(), sqi: null, searchablePages: null, excludedPages: null, problems: [], error: e instanceof Error ? e.message.slice(0, 300) : "Ошибка Вебмастера" };
+      }
+    })(),
+    20000
+  ).catch(() => null);
 
   const [robots, sitemap, llms] = await Promise.all([
     fetchOwn(`${siteUrl}/robots.txt`),
@@ -142,6 +246,9 @@ export async function runSeoAudit(trigger: "manual" | "cron"): Promise<AuditResu
 
   const reachable = [robots, sitemap, llms, keyFile, ...pages.map((p) => p.res)].some((r) => r !== null);
   let pagesChecked = 0;
+  let linksChecked = 0;
+  let sslExpiresAt: Date | null = null;
+  const crawled: { path: string; d: PageDetails; res: Fetched }[] = [];
   if (!reachable) {
     found.push({
       code: "setup.crawl-unreachable",
@@ -169,7 +276,78 @@ export async function runSeoAudit(trigger: "manual" | "cron"): Promise<AuditResu
       };
       found.push(...auditFetchedPage(page, siteUrl));
       if (t.path === "/" && res.status === 200) found.push(...auditHomeStructured(res.text));
+      if (res.status === 200) {
+        const d = extractDetails(res.text);
+        crawled.push({ path: t.path, d, res });
+        found.push(
+          ...auditPageDeep(d, {
+            path: t.path, isPost: t.isPost, targetId: t.id, publicUrl, contentType: res.contentType,
+            xRobotsTag: res.xRobotsTag, ttfbMs: res.ttfb, htmlBytes: res.bytes, requestedUrl: siteUrl + t.path, finalUrl: res.finalUrl,
+          })
+        );
+      }
     }
+    found.push(
+      ...auditDuplicates(
+        crawled.map(({ path, d }) => ({ path, title: d.title, description: d.description, h1: d.h1[0] ?? "", noindex: /noindex/.test(d.metaRobots) }))
+      )
+    );
+
+    // Битые внутренние ссылки: проверяем адреса, которые мы не открывали при обходе
+    const allLinks = collectInternalLinks(crawled.map(({ path, d }) => ({ path, links: d.links })), publicUrl);
+    const known = new Set(targets.map((t) => t.path.replace(/\/+$/, "") || "/"));
+    const toCheck = Array.from(allLinks.entries()).filter(([path]) => !known.has(path.replace(/\?.*$/, ""))).slice(0, 60);
+    const statuses = await mapLimit(toCheck, 6, async ([path, from]) => ({ path, from, status: await linkStatus(siteUrl + path) }));
+    linksChecked = statuses.length;
+    found.push(...auditBrokenLinks(statuses.filter((x): x is { path: string; from: string[]; status: number } => x.status !== null)));
+
+    // Сайт в целом: SSL, редиректы www/http, страница 404, favicon
+    const origin = publicOk ? `${publicUrl.replace(/^https?:\/\//, "")}`.replace(/^www\./, "") : "";
+    const [ssl, wwwRes, httpRes, nf, fav] = await Promise.all([
+      publicOk ? fetchSsl(origin) : Promise.resolve(null),
+      publicOk ? fetchManual(`https://www.${origin}/`) : Promise.resolve(null),
+      publicOk ? fetchManual(`http://${origin}/`) : Promise.resolve(null),
+      fetchOwn(`${siteUrl}/__seo-check-404-${Math.random().toString(36).slice(2, 8)}`),
+      fetchOwn(`${siteUrl}/favicon.ico`),
+    ]);
+    sslExpiresAt = ssl?.expiresAt ?? null;
+    const homeD = crawled.find((c) => c.path === "/")?.d;
+    found.push(
+      ...auditSiteTech(
+        {
+          sslExpiresAt: ssl?.expiresAt ?? null,
+          sslError: ssl?.error ?? "",
+          www: wwwRes,
+          http: httpRes,
+          notFound: nf ? { status: nf.status, html: nf.text } : null,
+          favicon: fav ? { status: fav.status } : null,
+          homeHasIconLink: homeD?.hasIcon ?? false,
+          publicUrl: publicOk ? publicUrl : SITE_URL,
+        },
+        now
+      )
+    );
+  }
+
+  // ── скорость (PageSpeed), Вебмастер и общие метрики ──
+  const psi = await psiJob.catch(() => null);
+  if (psi) {
+    found.push(...auditPsi(psi));
+    await saveMetric("psi", { at: now.toISOString(), mobile: psi.find((r) => r.strategy === "mobile") ?? null, desktop: psi.find((r) => r.strategy === "desktop") ?? null });
+  }
+  const wm = await webmasterJob;
+  if (wm) await saveMetric("webmaster", wm);
+  if (crawled.length) {
+    const avg = (xs: number[]) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null);
+    await saveMetric("site", {
+      at: now.toISOString(),
+      pagesChecked,
+      avgMs: avg(crawled.map((c) => c.res.ms)),
+      avgTtfb: avg(crawled.map((c) => c.res.ttfb)),
+      avgHtmlKb: avg(crawled.map((c) => c.res.bytes / 1024)),
+      sslExpiresAt: sslExpiresAt ? sslExpiresAt.toISOString() : null,
+      linksChecked,
+    });
   }
 
   // ── IndexNow: работает ли уведомление Яндекса о новых страницах ──

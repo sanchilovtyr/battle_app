@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { BOTS } from "@/lib/bots";
+import { fmtCls, fmtSec, PsiResult } from "@/lib/pageSpeed";
 
 interface Issue {
   id: string;
@@ -53,6 +54,13 @@ interface IndexNowInfo {
   keyUrl: string | null;
   pings: PingRow[];
   pending: number;
+  tableMissing: boolean;
+}
+
+interface Metrics {
+  site: { at: string; pagesChecked: number; avgMs: number | null; avgTtfb: number | null; avgHtmlKb: number | null; sslExpiresAt: string | null; linksChecked: number } | null;
+  psi: { at: string; mobile: PsiResult | null; desktop: PsiResult | null } | null;
+  webmaster: { at: string; sqi: number | null; searchablePages: number | null; excludedPages: number | null; problems: unknown[]; error: string } | null;
   tableMissing: boolean;
 }
 
@@ -229,6 +237,61 @@ function IndexNowPanel({ info, onDone }: { info: IndexNowInfo; onDone: () => voi
   );
 }
 
+function psiColor(score: number | null): string {
+  if (score === null) return "text-muted";
+  return score >= 90 ? "text-emerald-600" : score >= 50 ? "text-amber-600" : "text-red-600";
+}
+
+function Tile({ label, value, sub, valueClass = "text-ink-900" }: { label: string; value: string; sub?: string; valueClass?: string }) {
+  return (
+    <div className="rounded-xl border border-line bg-soft p-4">
+      <p className="text-xs font-bold uppercase tracking-wide text-ink-900/60">{label}</p>
+      <p className={`mt-2 font-display text-2xl ${valueClass}`}>{value}</p>
+      {sub && <p className="mt-1 text-xs text-muted">{sub}</p>}
+    </div>
+  );
+}
+
+function MetricsPanel({ m }: { m: Metrics }) {
+  const { site, psi, webmaster } = m;
+  const sslDays = site?.sslExpiresAt ? Math.floor((new Date(site.sslExpiresAt).getTime() - Date.now()) / 86400000) : null;
+  const speed = (r: PsiResult | null | undefined, name: string) => (
+    <Tile
+      label={`Скорость ${name}`}
+      value={r && r.score !== null ? `${r.score} / 100` : "—"}
+      valueClass={psiColor(r?.score ?? null)}
+      sub={r && r.score !== null ? `LCP ${fmtSec(r.lcp)} · сдвиг макета ${fmtCls(r.cls)} · ответ ${r.ttfb === null ? "—" : Math.round(r.ttfb) + " мс"}` : r?.error || "Нет данных — нажмите «Проверить сейчас»"}
+    />
+  );
+  return (
+    <div className="mb-6 rounded-2xl border border-line bg-white p-6">
+      <h3 className="mb-1 font-display text-base text-ink-900">Метрики сайта</h3>
+      <p className="mb-4 text-xs text-muted">
+        Обновляются при каждой проверке. Скорость — по данным Google PageSpeed (для стабильной работы задайте переменную PAGESPEED_API_KEY, ключ бесплатный).
+        ИКС и число страниц в поиске приходят из Яндекс.Вебмастера (нужен токен во вкладке «Яндекс и Google»). Возраст домена, внешние ссылки и рейтинги вроде PR-CY Rank и Ahrefs DR не считаем.
+      </p>
+      {m.tableMissing && <p className="mb-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">Для метрик нужна новая таблица: выполните npx prisma db push, затем запустите проверку.</p>}
+      <div className="grid gap-3 md:grid-cols-3">
+        {speed(psi?.mobile, "с телефона")}
+        {speed(psi?.desktop, "с компьютера")}
+        <Tile label="ИКС (Яндекс)" value={webmaster?.sqi != null ? String(webmaster.sqi) : "—"} sub={webmaster?.error || (webmaster ? `Проблем в Вебмастере: ${webmaster.problems.length}` : "Нужен токен Вебмастера")} />
+        <Tile label="Страниц в поиске Яндекса" value={webmaster?.searchablePages != null ? String(webmaster.searchablePages) : "—"} sub={webmaster?.excludedPages != null ? `Исключено: ${webmaster.excludedPages}` : undefined} />
+        <Tile
+          label="SSL-сертификат"
+          value={sslDays !== null ? `${sslDays} дн.` : "—"}
+          valueClass={sslDays === null ? "text-muted" : sslDays < 7 ? "text-red-600" : sslDays < 21 ? "text-amber-600" : "text-emerald-600"}
+          sub={site?.sslExpiresAt ? `до ${new Date(site.sslExpiresAt).toLocaleDateString("ru-RU")}` : "Не удалось проверить"}
+        />
+        <Tile
+          label="Ответ сайта"
+          value={site?.avgTtfb != null ? `${site.avgTtfb} мс` : "—"}
+          sub={site ? `до первого байта, в среднем по ${site.pagesChecked} стр. · HTML ${site.avgHtmlKb ?? "—"} КБ · ссылок проверено ${site.linksChecked}` : undefined}
+        />
+      </div>
+    </div>
+  );
+}
+
 function scoreColor(score: number): string {
   if (score >= 85) return "text-ink-900";
   if (score >= 60) return "text-amber-700";
@@ -236,7 +299,7 @@ function scoreColor(score: number): string {
 }
 
 export default function AdminSeoTab({ onEditPost }: { onEditPost: (id: string) => void }) {
-  const [data, setData] = useState<{ runs: Run[]; issues: Issue[]; resolved: Resolved[]; bots?: BotRow[]; indexNow?: IndexNowInfo; needsDbPush?: boolean } | null>(null);
+  const [data, setData] = useState<{ runs: Run[]; issues: Issue[]; resolved: Resolved[]; bots?: BotRow[]; indexNow?: IndexNowInfo; metrics?: Metrics; needsDbPush?: boolean } | null>(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | Issue["category"]>("all");
@@ -366,6 +429,7 @@ export default function AdminSeoTab({ onEditPost }: { onEditPost: (id: string) =
         </div>
       </div>
 
+      {data.metrics && <MetricsPanel m={data.metrics} />}
       <BotsPanel rows={data.bots ?? []} />
       {data.indexNow && <IndexNowPanel info={data.indexNow} onDone={load} />}
 
